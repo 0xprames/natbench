@@ -32,6 +32,7 @@ sudo ./target/release/natbench hairpin
 sudo ./target/release/natbench impair
 sudo ./target/release/natbench impair --loss-percent 100
 sudo ./target/release/natbench nested
+sudo ./target/release/natbench translate
 sudo ./target/release/natbench run --role a -- ip route
 ```
 
@@ -160,6 +161,22 @@ directly. Client B is unchanged. The result is the normal bench JSON with
 `nested_a` set, so the public mapping and the hole punch are observations of
 the two NATs composed, not of the inner router alone.
 
+## Userspace translator
+
+`translate` moves UDP off kernel masquerade. Each router queues UDP to NFQUEUE
+42 and runs `nat --lan-interface lan --wan-interface wan`. TCP masquerade stays
+in nftables, so the relay baseline still uses the kernel. With no
+`--translator` path, the command is this binary. Its mapping is
+endpoint-independent, it keeps the source port when that port is free, and it
+allows return traffic from any address once the mapping exists. Linux
+masquerade does not: its filtering stays address-and-port-dependent. The result
+is the normal bench JSON with `translator` set to the program that ran.
+
+`--translator` can be another program with that same command, including a
+separately installed [natlab](https://github.com/danderson/natlab) binary.
+natbench does not vendor that code. The probes record whatever the program
+does.
+
 ## Bring your own programs
 
 ```rust,no_run
@@ -209,31 +226,31 @@ This fixture owns the lifecycle of programs launched into it.
 
 [danderson/natlab](https://github.com/danderson/natlab) explores NAT emulation with
 userspace UDP translation through NFQUEUE and port allocation policies. It is useful
-related work and an inspiration for a future translator backend.
+related work. The kernel profiles remain the default measurement. `translate` adds
+a userspace UDP path on the same probes.
 
 `natbench` adds an automated measurement and connectivity experiment layer:
 asymmetric matrices, independent mapping/filtering observations, infrastructure
 shutdown controls, TCP fallback/recovery, machine-readable results, and a reusable
-program fixture. The initial backend exercises Linux's actual conntrack and nftables
-rather than implementing a custom packet translator.
+program fixture. Kernel profiles exercise Linux conntrack and nftables. The
+userspace translator is a separate UDP path and is not a copy of natlab.
 
-This is a separate implementation, not a fork. It contains no danderson/natlab code,
-and does not currently launch or validate that translator. A future integration
-should run its translator as a separately installed program in each router namespace
-and subject it to the same observations; documented NAT policies should be verified
-by probes rather than assumed. Such integration needs its own tests and must respect
-the upstream GPL-3.0 license.
+This is a separate implementation, not a fork. It contains no danderson/natlab code.
+`translate --translator` can launch a separately installed natlab binary inside
+each router namespace and subject it to the same observations. Documented NAT
+policies are verified by probes rather than assumed. That program remains under
+its own GPL-3.0 license.
 
 ## Scope and next experiments
 
 Implemented: IPv4 UDP observations and traversal, IPv4 TCP relay controls, three
 kernel profiles, asymmetric matrices, generic process execution, JSON results,
 lifecycle tests, mapping expiry and refresh observations, port-collision
-observations, hairpin observations, WAN loss and delay observations, and a
-nested NAT in front of client A.
+observations, hairpin observations, WAN loss and delay observations, a nested
+NAT in front of client A, and a userspace UDP translator with endpoint-independent
+filtering.
 
-Useful next steps: independently configurable mapping/filtering via a userspace
-translator; real STUN clients; application adapters for QUIC and WebRTC.
+Useful next steps: real STUN clients; application adapters for QUIC and WebRTC.
 IPv6, TCP hole punching, and performance measurement are outside the current suite.
 
 ## Development
@@ -248,7 +265,7 @@ sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, userspace translation, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
 ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.

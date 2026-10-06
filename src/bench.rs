@@ -31,6 +31,9 @@ pub struct Options {
     pub delay_ms: u64,
     pub loss_percent: u64,
     pub nest_a: bool,
+    /// External program run as `nat --lan-interface lan --wan-interface wan` in each router.
+    /// UDP translation moves to that program. TCP masquerade stays in nftables.
+    pub translator: Option<PathBuf>,
     pub executable: PathBuf,
 }
 impl Options {
@@ -43,6 +46,7 @@ impl Options {
             delay_ms: 0,
             loss_percent: 0,
             nest_a: false,
+            translator: None,
             executable: std::env::current_exe()?,
         })
     }
@@ -58,6 +62,10 @@ impl Options {
             "delay must be at most 1000 milliseconds"
         );
         anyhow::ensure!(self.loss_percent <= 100, "loss must be at most 100 percent");
+        anyhow::ensure!(
+            self.translator.is_none() || !self.nest_a,
+            "userspace translation does not combine with nested NAT"
+        );
         Ok(())
     }
 }
@@ -221,6 +229,9 @@ pub fn benchmark(options: &Options) -> Result<Value> {
     if options.nest_a {
         lab.add_outer_nat(options.a, options.router_input)?;
     }
+    if let Some(translator) = &options.translator {
+        lab.use_userspace_translator(translator)?;
+    }
     let mut observer = Endpoint::udp(&mut lab, "wan", &options.executable, json!(DESTINATIONS))?;
     let relay = Endpoint::launch(&mut lab, "wan", &options.executable, &["__relay"])?;
     let mut clients = [
@@ -294,6 +305,7 @@ pub fn benchmark(options: &Options) -> Result<Value> {
         "profiles": {"a": options.a, "b": options.b}, "router_input": options.router_input,
         "impairment": {"delay_ms": options.delay_ms, "loss_percent": options.loss_percent},
         "nested_a": options.nest_a,
+        "translator": options.translator.as_ref().map(|path| path.display().to_string()),
         "observations": {"a": observations[0], "b": observations[1]},
         "relay": {"bidirectional_before": before, "outage_detected": {"a": outage[0], "b": outage[1]}, "bidirectional_after_restart": recovered},
         "traversal": {"received": {"a": reached[0], "b": reached[1]}, "bidirectional": reached.iter().all(|&v| v),
@@ -314,6 +326,7 @@ pub fn matrix(options: &Options) -> Result<Vec<Value>> {
                 delay_ms: options.delay_ms,
                 loss_percent: options.loss_percent,
                 nest_a: options.nest_a,
+                translator: options.translator.clone(),
                 executable: options.executable.clone(),
             })?);
         }

@@ -336,6 +336,64 @@ table ip firewall {{
 "#,
             input.policy()
         );
+        self.nft(router, &rules)
+    }
+    /// Queue forwarded UDP to an external translator and leave TCP on kernel masquerade.
+    /// The program is executed as `nat --lan-interface lan --wan-interface wan` in each router.
+    pub fn use_userspace_translator(&mut self, translator: &std::path::Path) -> Result<()> {
+        let program = translator
+            .to_str()
+            .context("translator path is not valid unicode")?;
+        let rules = r#"delete table ip translation
+table ip translation {
+ chain outbound { type nat hook postrouting priority srcnat; oifname "wan" meta l4proto tcp masquerade; }
+}
+table ip userspace {
+ chain from_wan { type filter hook prerouting priority raw; policy accept;
+  iifname "wan" meta l4proto udp queue flags bypass to 42; }
+ chain to_wan { type filter hook postrouting priority raw; policy accept;
+  oifname "wan" meta l4proto udp queue flags bypass to 42; }
+}
+add rule ip firewall transit meta l4proto udp accept
+"#;
+        for router in ["ra", "rb"] {
+            self.nft(router, rules)?;
+            let process = self.spawn(
+                router,
+                &[
+                    program,
+                    "nat",
+                    "--lan-interface",
+                    "lan",
+                    "--wan-interface",
+                    "wan",
+                ],
+            )?;
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            loop {
+                if process.0.lock().unwrap().try_wait()?.is_some() {
+                    bail!("translator in {router} exited before it bound NFQUEUE 42");
+                }
+                if let Ok(output) = self
+                    .command(router, &["cat", "/proc/net/netfilter/nfnetlink_queue"])?
+                    .output()
+                {
+                    let ready = String::from_utf8_lossy(&output.stdout)
+                        .lines()
+                        .any(|line| line.split_whitespace().next() == Some("42"));
+                    if ready {
+                        break;
+                    }
+                }
+                if std::time::Instant::now() > deadline {
+                    bail!("translator in {router} did not bind NFQUEUE 42");
+                }
+                thread::sleep(Duration::from_millis(20));
+            }
+        }
+        Ok(())
+    }
+    fn nft(&self, router: &str, rules: &str) -> Result<()> {
         let mut child = self
             .command(router, &["nft", "-f", "-"])?
             .stdin(Stdio::piped())

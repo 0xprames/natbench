@@ -3,6 +3,7 @@
 //! Network fixtures and measured NAT experiments for Linux.
 pub mod bench;
 pub mod lab;
+mod translate;
 mod worker;
 
 use std::sync::{
@@ -27,4 +28,8 @@ pub fn run_endpoint(binds: &str) -> anyhow::Result<()> {
 #[doc(hidden)]
 pub fn run_relay() -> anyhow::Result<()> {
     worker::relay()
+}
+#[doc(hidden)]
+pub fn run_nat(lan: &str, wan: &str) -> anyhow::Result<()> {
+    translate::run(lan, wan)
 }

@@ -32,6 +32,7 @@ fn options() -> Options {
         delay_ms: 0,
         loss_percent: 0,
         nest_a: false,
+        translator: None,
         executable: env!("CARGO_BIN_EXE_natbench").into(),
     }
 }
@@ -259,6 +260,36 @@ fn nested_preserve_still_maps_and_traverses() {
     assert_eq!(result["relay"]["bidirectional_before"], true, "{result}");
     assert_eq!(
         result["observations"]["a"]["mapping"], "endpoint-independent",
+        "{result}"
+    );
+    assert_eq!(
+        result["observations"]["a"]["observed_endpoints"][0][0], "198.18.0.10",
+        "{result}"
+    );
+    assert_eq!(result["traversal"]["bidirectional"], true, "{result}");
+    assert_eq!(before, namespaces());
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn userspace_translator_filters_endpoint_independently() {
+    let before = namespaces();
+    let mut options = options();
+    options.translator = Some(env!("CARGO_BIN_EXE_natbench").into());
+    options.timeout_seconds = 2.;
+    let result = benchmark(&options).unwrap();
+    assert!(result["translator"].is_string(), "{result}");
+    assert_eq!(result["relay"]["bidirectional_before"], true, "{result}");
+    assert_eq!(
+        result["observations"]["a"]["mapping"], "endpoint-independent",
+        "{result}"
+    );
+    assert_eq!(
+        result["observations"]["a"]["filtering"], "endpoint-independent",
+        "{result}"
+    );
+    assert_eq!(
+        result["observations"]["a"]["port_preserved"], true,
         "{result}"
     );
     assert_eq!(

@@ -84,6 +84,22 @@ enum Action {
         #[arg(long, default_value_t = 2.)]
         timeout: f64,
     },
+    /// Measure preserve/preserve peers through a userspace UDP translator.
+    Translate {
+        /// Program invoked as `nat --lan-interface lan --wan-interface wan` in each router.
+        /// Defaults to this binary, which keeps the source port and filters endpoint-independently.
+        #[arg(long)]
+        translator: Option<PathBuf>,
+        #[arg(long, default_value_t = 2.)]
+        timeout: f64,
+    },
+    /// Translate forwarded UDP from NFQUEUE 42. External translators use this same command.
+    Nat {
+        #[arg(long)]
+        lan_interface: String,
+        #[arg(long)]
+        wan_interface: String,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -96,6 +112,7 @@ fn execute(action: Action) -> Result<i32> {
                 delay_ms: 0,
                 loss_percent: 0,
                 nest_a: false,
+                translator: None,
                 executable: executable()?,
             })?;
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -182,6 +199,20 @@ fn execute(action: Action) -> Result<i32> {
             let result = bench::benchmark(&options)?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
+        Action::Translate {
+            translator,
+            timeout,
+        } => {
+            let mut options = Options::current_exe()?;
+            options.translator = Some(translator.unwrap_or(options.executable.clone()));
+            options.timeout_seconds = timeout;
+            let result = bench::benchmark(&options)?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::Nat {
+            lan_interface,
+            wan_interface,
+        } => natbench::run_nat(&lan_interface, &wan_interface)?,
     }
     Ok(0)
 }
@@ -191,7 +222,10 @@ fn executable() -> Result<PathBuf> {
 fn main() {
     let cli = Cli::parse();
     // Workers use the OS default termination behavior; only the controller owns cleanup.
-    if !matches!(cli.command, Action::Endpoint { .. } | Action::Relay) {
+    if !matches!(
+        cli.command,
+        Action::Endpoint { .. } | Action::Relay | Action::Nat { .. }
+    ) {
         for signal in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {
             if let Err(error) =
                 signal_hook::flag::register(signal, natbench::cancellation().clone())
