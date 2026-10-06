@@ -315,7 +315,7 @@ pub(crate) fn run_application_cases(
 pub fn run(path: &Path, artifacts: &Path) -> Result<Report> {
     let input = fs::read(path).context("read scenario")?;
     let header: Value = serde_json::from_slice(&input).context("parse scenario")?;
-    if header["schema_version"] == 2 {
+    if matches!(header["schema_version"].as_u64(), Some(2 | 3)) {
         return crate::application::run(path, artifacts, &input);
     }
     let suite: Suite = serde_json::from_slice(&input).context("parse scenario")?;

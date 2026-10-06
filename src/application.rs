@@ -74,22 +74,43 @@ enum Step {
     Restart {
         process: String,
     },
+    WaitStdout {
+        process: String,
+        text: String,
+        timeout_seconds: f64,
+    },
+    WaitExit {
+        process: String,
+        timeout_seconds: f64,
+        #[serde(default)]
+        expect_exit: i32,
+        #[serde(default)]
+        stdout_contains: Option<String>,
+    },
+    Delay {
+        seconds: f64,
+    },
 }
 impl Step {
-    fn process(&self) -> &str {
+    fn process(&self) -> Option<&str> {
         match self {
             Self::Start { process }
             | Self::Run { process, .. }
             | Self::Stop { process }
-            | Self::Restart { process } => process,
+            | Self::Restart { process }
+            | Self::WaitStdout { process, .. }
+            | Self::WaitExit { process, .. } => Some(process),
+            Self::Delay { .. } => None,
         }
     }
 }
 impl Suite {
     fn validate(&self, base: &Path) -> Result<()> {
         anyhow::ensure!(
-            self.schema_version == 2 && !self.cases.is_empty() && self.cases.len() <= 100,
-            "application schema 2 needs 1–100 cases"
+            matches!(self.schema_version, 2 | 3)
+                && !self.cases.is_empty()
+                && self.cases.len() <= 100,
+            "application schemas 2 and 3 need 1–100 cases"
         );
         let mut case_names = HashSet::new();
         for case in &self.cases {
@@ -159,10 +180,23 @@ impl Suite {
             }
             let mut live = HashSet::new();
             for step in &case.steps {
+                if matches!(
+                    step,
+                    Step::WaitStdout { .. } | Step::WaitExit { .. } | Step::Delay { .. }
+                ) {
+                    anyhow::ensure!(
+                        self.schema_version == 3,
+                        "wait_stdout, wait_exit and delay require application schema 3"
+                    );
+                }
+                if let Step::Delay { seconds } = step {
+                    validate_timeout(*seconds)?;
+                    continue;
+                }
                 let program = case
                     .processes
                     .iter()
-                    .find(|p| p.name == step.process())
+                    .find(|p| Some(p.name.as_str()) == step.process())
                     .context("step refers to an unknown process")?;
                 match step {
                     Step::Start { process } => {
@@ -199,11 +233,50 @@ impl Suite {
                             validate_pattern(pattern)?;
                         }
                     }
+                    Step::WaitStdout {
+                        process,
+                        text,
+                        timeout_seconds,
+                    } => {
+                        anyhow::ensure!(
+                            live.contains(process),
+                            "wait_stdout requires a started process"
+                        );
+                        validate_pattern(text)?;
+                        validate_timeout(*timeout_seconds)?;
+                    }
+                    Step::WaitExit {
+                        process,
+                        timeout_seconds,
+                        expect_exit,
+                        stdout_contains,
+                    } => {
+                        anyhow::ensure!(
+                            live.remove(process),
+                            "wait_exit requires a started process"
+                        );
+                        validate_timeout(*timeout_seconds)?;
+                        anyhow::ensure!(
+                            (0..=255).contains(expect_exit),
+                            "expected exit must be 0–255"
+                        );
+                        if let Some(pattern) = stdout_contains {
+                            validate_pattern(pattern)?;
+                        }
+                    }
+                    Step::Delay { .. } => unreachable!(),
                 }
             }
         }
         Ok(())
     }
+}
+fn validate_timeout(seconds: f64) -> Result<()> {
+    anyhow::ensure!(
+        seconds.is_finite() && seconds > 0. && seconds <= 3600.,
+        "timeouts and delays must be greater than zero and at most 3600 seconds"
+    );
+    Ok(())
 }
 fn validate_pattern(pattern: &str) -> Result<()> {
     anyhow::ensure!(
@@ -248,10 +321,14 @@ impl Matcher {
         }
         Ok(false)
     }
+    fn exhausted(&mut self) -> Result<bool> {
+        Ok(self.file.metadata()?.len() == std::io::Seek::stream_position(&mut self.file)?)
+    }
 }
 struct Active {
     process: Process,
     stdout: PathBuf,
+    expected_completion: bool,
 }
 struct Runner<'a> {
     lab: Lab,
@@ -267,6 +344,9 @@ struct Runner<'a> {
 impl<'a> Runner<'a> {
     fn event(&mut self, process: &str, state: &str) -> Result<()> {
         let event = json!({"elapsed_ms":self.started.elapsed().as_millis(),"process":process,"state":state});
+        self.record(event)
+    }
+    fn record(&mut self, event: Value) -> Result<()> {
         serde_json::to_writer(&mut self.timeline, &event)?;
         writeln!(self.timeline)?;
         self.timeline.flush()?;
@@ -318,7 +398,11 @@ impl<'a> Runner<'a> {
             File::create(&stderr)?,
         )?;
         self.event(&program.name, "started")?;
-        Ok(Active { process, stdout })
+        Ok(Active {
+            process,
+            stdout,
+            expected_completion: false,
+        })
     }
     fn ready(&mut self, program: &Program, active: &Active) -> Result<()> {
         let mut matcher = match program.ready.as_ref().unwrap() {
@@ -328,8 +412,12 @@ impl<'a> Runner<'a> {
         let deadline = Instant::now() + Duration::from_secs_f64(program.timeout_seconds);
         loop {
             crate::check_cancelled()?;
-            if let Some(status) = active.process.status()? {
-                bail!("{} exited before readiness: {status}", program.name);
+            self.check_services()?;
+            let status = active.process.status()?;
+            if let Some(status) = status {
+                if !active.expected_completion || matcher.is_none() {
+                    bail!("{} exited before readiness: {status}", program.name);
+                }
             }
             let ready = match program.ready.as_ref().unwrap() {
                 Ready::StdoutContains { .. } => matcher.as_mut().unwrap().found()?,
@@ -351,6 +439,11 @@ impl<'a> Runner<'a> {
                 self.event(&program.name, "ready")?;
                 return Ok(());
             }
+            if let Some(status) = status {
+                if matcher.as_mut().unwrap().exhausted()? {
+                    bail!("{} exited before readiness: {status}", program.name);
+                }
+            }
             if Instant::now() >= deadline {
                 self.event(&program.name, "readiness_timeout")?;
                 bail!("readiness timeout for {}", program.name);
@@ -368,8 +461,99 @@ impl<'a> Runner<'a> {
     }
     fn check_services(&self) -> Result<()> {
         for (name, active) in &self.active {
+            if active.expected_completion {
+                continue;
+            }
             if let Some(status) = active.process.status()? {
                 bail!("service {name} exited unexpectedly: {status}");
+            }
+        }
+        Ok(())
+    }
+    fn delay(&mut self, seconds: f64) -> Result<()> {
+        self.record(json!({"elapsed_ms":self.started.elapsed().as_millis(), "state":"delay_started", "seconds":seconds}))?;
+        let deadline = Instant::now() + Duration::from_secs_f64(seconds);
+        loop {
+            crate::check_cancelled()?;
+            self.check_services()?;
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            thread::sleep(remaining.min(Duration::from_millis(25)));
+        }
+        self.record(
+            json!({"elapsed_ms":self.started.elapsed().as_millis(), "state":"delay_completed"}),
+        )
+    }
+    fn wait_stdout(&mut self, name: &str, text: &str, timeout_seconds: f64) -> Result<bool> {
+        let active = &self.active[name];
+        let mut matcher = Matcher::open(&active.stdout, text)?;
+        let deadline = Instant::now() + Duration::from_secs_f64(timeout_seconds);
+        self.event(name, "stdout_wait_started")?;
+        loop {
+            crate::check_cancelled()?;
+            self.check_services()?;
+            if matcher.found()? {
+                self.event(name, "stdout_matched")?;
+                return Ok(true);
+            }
+            let exited = self.active[name].process.status()?.is_some();
+            let drained = matcher.exhausted()?;
+            if (exited && drained) || Instant::now() >= deadline {
+                self.event(name, "stdout_unmatched")?;
+                return Ok(false);
+            }
+            if drained {
+                thread::sleep(Duration::from_millis(25));
+            }
+        }
+    }
+    fn wait_completion(
+        &mut self,
+        name: &str,
+        active: &Active,
+        timeout_seconds: f64,
+        expect_exit: i32,
+        stdout_contains: &Option<String>,
+        messages: &mut Vec<String>,
+    ) -> Result<()> {
+        let deadline = Instant::now() + Duration::from_secs_f64(timeout_seconds);
+        let status = loop {
+            crate::check_cancelled()?;
+            self.check_services()?;
+            if let Some(status) = active.process.status()? {
+                break status;
+            }
+            if Instant::now() >= deadline {
+                self.event(name, "execution_timeout")?;
+                bail!("execution timeout for {name}");
+            }
+            thread::sleep(Duration::from_millis(25));
+        };
+        self.event(name, "exited")?;
+        if status.code() != Some(expect_exit) {
+            messages.push(format!(
+                "{name}: expected exit {expect_exit}, observed {status}"
+            ));
+        }
+        if let Some(text) = stdout_contains {
+            let mut matcher = Matcher::open(&active.stdout, text)?;
+            let found = loop {
+                crate::check_cancelled()?;
+                if matcher.found()? {
+                    break true;
+                }
+                if matcher.exhausted()? {
+                    break false;
+                }
+                anyhow::ensure!(
+                    Instant::now() < deadline,
+                    "stdout assertion timeout for {name}"
+                );
+            };
+            if !found {
+                messages.push(format!("{name}: expected stdout text was absent"));
             }
         }
         Ok(())
@@ -380,19 +564,27 @@ impl<'a> Runner<'a> {
             let step_result = (|| -> Result<()> {
                 crate::check_cancelled()?;
                 self.check_services()?;
-                let program = self
-                    .case
-                    .processes
-                    .iter()
-                    .find(|p| p.name == step.process())
-                    .unwrap();
+                let program = step
+                    .process()
+                    .map(|name| self.case.processes.iter().find(|p| p.name == name).unwrap());
                 match step {
                     Step::Start { process } | Step::Restart { process } => {
                         if matches!(step, Step::Restart { .. }) {
                             self.stop(process)?;
                         }
-                        let active = self.launch(program)?;
-                        self.ready(program, &active)?;
+                        let mut active = self.launch(program.unwrap())?;
+                        // The next terminal step declares whether this launch is a service
+                        // or an asynchronous command whose result will be collected later.
+                        active.expected_completion = self.case.steps[index + 1..]
+                            .iter()
+                            .filter(|next| next.process() == Some(process.as_str()))
+                            .find_map(|next| match next {
+                                Step::WaitExit { .. } => Some(true),
+                                Step::Stop { .. } | Step::Restart { .. } => Some(false),
+                                _ => None,
+                            })
+                            .unwrap_or(false);
+                        self.ready(program.unwrap(), &active)?;
                         self.active.insert(process.clone(), active);
                     }
                     Step::Stop { process } => self.stop(process)?,
@@ -401,62 +593,53 @@ impl<'a> Runner<'a> {
                         stdout_contains,
                         ..
                     } => {
+                        let program = program.unwrap();
                         let active = self.launch(program)?;
-                        let deadline =
-                            Instant::now() + Duration::from_secs_f64(program.timeout_seconds);
-                        let status = loop {
-                            crate::check_cancelled()?;
-                            self.check_services()?;
-                            if let Some(status) = active.process.status()? {
-                                break status;
-                            }
-                            if Instant::now() >= deadline {
-                                self.event(&program.name, "execution_timeout")?;
-                                bail!("execution timeout for {}", program.name);
-                            }
-                            thread::sleep(Duration::from_millis(25));
-                        };
-                        self.event(&program.name, "exited")?;
-                        if status.code() != Some(*expect_exit) {
+                        self.wait_completion(
+                            &program.name,
+                            &active,
+                            program.timeout_seconds,
+                            *expect_exit,
+                            stdout_contains,
+                            &mut messages,
+                        )?;
+                    }
+                    Step::WaitStdout {
+                        process,
+                        text,
+                        timeout_seconds,
+                    } => {
+                        if !self.wait_stdout(process, text, *timeout_seconds)? {
                             messages.push(format!(
-                                "{}: expected exit {expect_exit}, observed {status}",
-                                program.name
+                                "{process}: expected stdout text was absent before exit or timeout"
                             ));
                         }
-                        if let Some(text) = stdout_contains {
-                            let mut matcher = Matcher::open(&active.stdout, text)?;
-                            let mut found = false;
-                            // Scan captured output in bounded chunks while respecting the command deadline.
-                            loop {
-                                if matcher.found()? {
-                                    found = true;
-                                    break;
-                                }
-                                if matcher.file.metadata()?.len()
-                                    == std::io::Seek::stream_position(&mut matcher.file)?
-                                {
-                                    break;
-                                }
-                                crate::check_cancelled()?;
-                                anyhow::ensure!(
-                                    Instant::now() < deadline,
-                                    "stdout assertion timeout for {}",
-                                    program.name
-                                );
-                            }
-                            if !found {
-                                messages.push(format!(
-                                    "{}: expected stdout text was absent",
-                                    program.name
-                                ));
-                            }
-                        }
                     }
+                    Step::WaitExit {
+                        process,
+                        timeout_seconds,
+                        expect_exit,
+                        stdout_contains,
+                    } => {
+                        let active = self.active.remove(process).unwrap();
+                        self.event(process, "exit_wait_started")?;
+                        self.wait_completion(
+                            process,
+                            &active,
+                            *timeout_seconds,
+                            *expect_exit,
+                            stdout_contains,
+                            &mut messages,
+                        )?;
+                    }
+                    Step::Delay { seconds } => self.delay(*seconds)?,
                 }
                 Ok(())
             })();
-            step_result
-                .with_context(|| format!("step {} for process {}", index + 1, step.process()))?;
+            step_result.with_context(|| match step.process() {
+                Some(process) => format!("step {} for process {process}", index + 1),
+                None => format!("step {} (delay)", index + 1),
+            })?;
             if !messages.is_empty() {
                 break;
             }

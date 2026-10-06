@@ -47,3 +47,17 @@ fn application_example_matches_its_declared_schema() {
         .validate(&instance)
         .unwrap();
 }
+
+#[test]
+fn recovery_example_requires_schema_three_and_preserves_schema_two() {
+    let mut instance: Value =
+        serde_json::from_str(include_str!("../examples/udp-recovery/scenario.json")).unwrap();
+    let recovery = validator(include_str!("../schemas/scenario-v3.schema.json"));
+    recovery.validate(&instance).unwrap();
+    instance["schema_version"] = json!(2);
+    assert!(!validator(include_str!("../schemas/scenario-v2.schema.json")).is_valid(&instance));
+    let mut legacy: Value =
+        serde_json::from_str(include_str!("../examples/udp-echo/scenario.json")).unwrap();
+    legacy["schema_version"] = json!(3);
+    recovery.validate(&legacy).unwrap();
+}

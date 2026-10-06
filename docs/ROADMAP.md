@@ -47,12 +47,15 @@ Process logs, packet captures and report comparison remain M2 work.
 
 ## M2 Application scenario runner and first public launch
 
-Current slice: input schema 2 adds foreground application commands, declared
+Current slices: input schema 2 adds foreground application commands, declared
 stdout/TCP readiness, deadlines, sequential stop/restart, exit/stdout assertions,
-per-process logs and lifecycle timelines. An independent Go UDP example exercises
-NAT, service restart and an expected UDP-blocked failure. Timed events, richer
-adapters, packet capture, repeat statistics, a second language example and outside
-evaluation remain before the M2 public launch gate.
+per-process logs and lifecycle timelines. Schema 3 adds output/exit waits and
+supervised delay steps for explicit service downtime. The independent Go UDP
+example exercises NAT, restart and an expected UDP-blocked failure. A standalone
+Rust example proves a persistent UDP client receives fresh application data after
+a service outage behind preserve and random NATs. Timed network events, richer
+adapters, packet capture, repeat statistics, the user-facing Actions walkthrough
+and outside evaluation remain before the M2 public launch gate.
 
 Exit criteria:
 

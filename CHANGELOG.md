@@ -7,6 +7,10 @@
 - Per-launch stdout/stderr and JSONL lifecycle timelines, preserved on failure.
 - Dedicated process groups terminate service children during stop/restart.
 - Independent Go UDP scenario for NAT, restart and an expected blocked-UDP result.
+- Application input schema 3 adds bounded stdout/exit waits, asynchronous command
+  completion and supervised delay steps, preserving version 1 and 2 inputs.
+- Independent Rust UDP client demonstrates fresh-data recovery on the same socket
+  across a WAN service outage behind preserve and random NATs.
 
 ## 0.1.1
 

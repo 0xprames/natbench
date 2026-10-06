@@ -1,3 +1,4 @@
 /target/
 /results*.json
 /examples/udp-echo/udp-echo
+/examples/udp-recovery/udp-recovery

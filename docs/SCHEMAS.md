@@ -38,6 +38,17 @@ directories, IPv4 readiness addresses, NUL-free argv/env and bounded byte patter
 See [application scenarios](APPLICATIONS.md) for execution and readiness semantics.
 Input version 2 and suite report version 2 are independent formats.
 
+## Application scenario version 3
+
+[scenario-v3.schema.json](../schemas/scenario-v3.schema.json) retains version 2's
+process model and adds `wait_stdout`, `wait_exit` and `delay`. Declare version 3
+to use these steps; version 2 rejects them. A command paired with `wait_exit`
+may complete after readiness while the scenario continues, and its assertions
+are evaluated when collected. Service supervision remains active during waits.
+Existing version 1 and 2 paths remain supported. A version 2 application scenario
+can opt into version 3 by changing only its version field. Suite reports remain
+at version 2. See [application scenarios](APPLICATIONS.md) for ordering and deadlines.
+
 ## Suite report version 2
 
 Current reports use [suite-report-v2.schema.json](../schemas/suite-report-v2.schema.json).

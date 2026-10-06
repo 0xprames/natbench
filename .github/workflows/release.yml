@@ -61,6 +61,9 @@ jobs:
           sudo "$binary" doctor --probe --json > doctor.json
           sudo "$binary" test "$scenario" --artifacts packaged-scenario > packaged-report.json
           sudo "$binary" test examples/udp-echo/scenario.json --artifacts application-artifacts > application-report.json
+          bundle=$(dirname "$binary")
+          rustc --edition 2021 -D warnings "$bundle/examples/udp-recovery/main.rs" -o "$bundle/examples/udp-recovery/udp-recovery"
+          sudo "$binary" test "$bundle/examples/udp-recovery/scenario.json" --artifacts recovery-artifacts > recovery-report.json
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.target }}
@@ -77,6 +80,8 @@ jobs:
             cancellation-artifacts/
             application-artifacts/
             application-report.json
+            recovery-artifacts/
+            recovery-report.json
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: build

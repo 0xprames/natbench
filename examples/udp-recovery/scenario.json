@@ -1,0 +1,149 @@
+{
+  "schema_version": 3,
+  "cases": [
+    {
+      "name": "persistent UDP socket recovers behind preserve NAT",
+      "a": "preserve",
+      "b": "preserve",
+      "router_input": "drop",
+      "processes": [
+        {
+          "name": "echo",
+          "role": "wan",
+          "argv": [
+            "./udp-recovery",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "READY"
+          }
+        },
+        {
+          "name": "peer",
+          "role": "a",
+          "argv": [
+            "./udp-recovery",
+            "client"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "CONNECTED"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "echo"
+        },
+        {
+          "action": "start",
+          "process": "peer"
+        },
+        {
+          "action": "stop",
+          "process": "echo"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "peer",
+          "text": "DISCONNECTED",
+          "timeout_seconds": 3
+        },
+        {
+          "action": "delay",
+          "seconds": 0.2
+        },
+        {
+          "action": "start",
+          "process": "echo"
+        },
+        {
+          "action": "wait_exit",
+          "process": "peer",
+          "timeout_seconds": 5,
+          "stdout_contains": "PASS recovered application data on the original socket"
+        },
+        {
+          "action": "stop",
+          "process": "echo"
+        }
+      ]
+    },
+    {
+      "name": "persistent UDP socket recovers behind random NAT",
+      "a": "random",
+      "b": "preserve",
+      "router_input": "drop",
+      "processes": [
+        {
+          "name": "echo",
+          "role": "wan",
+          "argv": [
+            "./udp-recovery",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "READY"
+          }
+        },
+        {
+          "name": "peer",
+          "role": "a",
+          "argv": [
+            "./udp-recovery",
+            "client"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "CONNECTED"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "echo"
+        },
+        {
+          "action": "start",
+          "process": "peer"
+        },
+        {
+          "action": "stop",
+          "process": "echo"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "peer",
+          "text": "DISCONNECTED",
+          "timeout_seconds": 3
+        },
+        {
+          "action": "delay",
+          "seconds": 0.2
+        },
+        {
+          "action": "start",
+          "process": "echo"
+        },
+        {
+          "action": "wait_exit",
+          "process": "peer",
+          "timeout_seconds": 5,
+          "stdout_contains": "PASS recovered application data on the original socket"
+        },
+        {
+          "action": "stop",
+          "process": "echo"
+        }
+      ]
+    }
+  ]
+}

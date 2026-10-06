@@ -23,8 +23,7 @@ for dates, scope and release gates.
 sudo ./target/release/natbench test scenarios/connectivity.json --artifacts ./run-001
 ```
 
-This first scenario slice runs built-in `bench` cases; arbitrary application
-commands are the next milestone. Each case declares both router profiles, an
+Version 1 suites run built-in `bench` cases. Each case declares both router profiles, an
 input policy, a timeout, and JSON Pointer equality assertions against observations.
 The suite keeps the observations and records a separate verdict for every case.
 
@@ -48,11 +47,13 @@ measurement commands keep their original exit behavior.
 
 ## External application scenarios
 
-Development builds also accept input schema version 2 for ordinary application
+Development builds also accept input schemas 2 and 3 for ordinary application
 executables: declared readiness, bounded commands, stop/restart steps, assertions,
-logs and timelines. See [application scenarios](docs/APPLICATIONS.md) and the
-[independent Go UDP example](examples/udp-echo/scenario.json). Built-in version 1
-suites retain their existing behavior. This is the first M2 implementation slice.
+logs and timelines. Schema 3 adds output/exit waits and supervised downtime steps.
+See [application scenarios](docs/APPLICATIONS.md), the
+[independent Go UDP example](examples/udp-echo/scenario.json) and the
+[persistent Rust client recovery example](examples/udp-recovery/scenario.json).
+Built-in version 1 suites retain their existing behavior. M2 remains a development build.
 
 ## Prerequisite checks
 
@@ -84,8 +85,9 @@ Branch/PR builds retain tested archives as workflow artifacts. A version-matchin
 `vX.Y.Z` tag on a commit reachable from `main` publishes archives only after
 both architectures pass tests and
 extracted-binary smoke checks; prerelease tags publish prerelease entries. No tag
-or release is created by a branch build. First stable distribution waits for the
-M1 gate in the roadmap.
+or release is created by a branch build. The M1 stable distribution is
+[v0.1.1](https://github.com/0xprames/natbench/releases/tag/v0.1.1); application
+scenarios are available in development builds until the M2 launch gate passes.
 
 ## Quick start
 

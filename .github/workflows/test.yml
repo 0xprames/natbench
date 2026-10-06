@@ -17,7 +17,10 @@ jobs:
           go-version: '1.24'
           cache: false
       - run: go build -o examples/udp-echo/udp-echo examples/udp-echo/main.go
-      - run: cargo fmt --check
+      - run: rustc --edition 2021 -D warnings examples/udp-recovery/main.rs -o examples/udp-recovery/udp-recovery
+      - run: |
+          cargo fmt --check
+          rustfmt --check --edition 2021 examples/udp-recovery/main.rs
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
       - run: sudo ./target/debug/natbench doctor --probe --json > doctor.json
@@ -25,6 +28,7 @@ jobs:
       - run: sudo ./target/debug/natbench matrix > results.json
       - run: sudo ./target/debug/natbench test scenarios/connectivity.json --artifacts scenario-artifacts
       - run: sudo ./target/debug/natbench test examples/udp-echo/scenario.json --artifacts application-artifacts
+      - run: sudo ./target/debug/natbench test examples/udp-recovery/scenario.json --artifacts recovery-artifacts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -35,3 +39,4 @@ jobs:
             scenario-artifacts/
             cancellation-artifacts/
             application-artifacts/
+            recovery-artifacts/
