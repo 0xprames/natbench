@@ -141,14 +141,17 @@ impl Endpoint {
             }
         }
     }
-    fn request(&mut self, request: Value) -> Result<Value> {
+    fn write(&mut self, request: Value) -> Result<()> {
         check_cancelled()?;
         serde_json::to_writer(&mut self.input, &request)?;
         writeln!(self.input)?;
         self.input.flush()?;
-        self.read(Duration::from_secs_f64(
-            request["timeout"].as_f64().unwrap_or(0.5) + 3.,
-        ))
+        Ok(())
+    }
+    fn request(&mut self, request: Value) -> Result<Value> {
+        let timeout = request["timeout"].as_f64().unwrap_or(0.5) + 3.;
+        self.write(request)?;
+        self.read(Duration::from_secs_f64(timeout))
     }
     fn send(&mut self, socket: usize, destination: Value, data: &str) -> Result<()> {
         self.request(json!({"action": "send", "socket": socket, "to": destination, "data": data}))?;
@@ -902,6 +905,54 @@ pub fn hairpin(options: &HairpinOptions) -> Result<Value> {
         "mappings": {"a": mapped_a, "peer": mapped_peer},
         "a_to_peer": a_to_peer,
         "peer_to_a": peer_to_a,
+        "elapsed_seconds": (started.elapsed().as_secs_f64() * 1000.).round() / 1000.,
+    }))
+}
+
+pub struct QuicOptions {
+    pub timeout_seconds: f64,
+    pub executable: PathBuf,
+}
+
+pub fn quic(options: &QuicOptions) -> Result<Value> {
+    anyhow::ensure!(
+        options.timeout_seconds.is_finite() && options.timeout_seconds > 0.,
+        "invalid timeout"
+    );
+    let started = Instant::now();
+    let mut lab = Lab::create(Profile::Preserve, Profile::Preserve, RouterInput::Drop)?;
+    let binds = json!(DESTINATIONS).to_string();
+    let _stun = Endpoint::launch(&mut lab, "wan", &options.executable, &["__stun", &binds])?;
+    let relay = Endpoint::launch(&mut lab, "wan", &options.executable, &["__relay"])?;
+    let mut server = Endpoint::launch(&mut lab, "b", &options.executable, &["__quic", "b"])?;
+    let mut client = Endpoint::launch(&mut lab, "a", &options.executable, &["__quic", "a"])?;
+    let timeout = Duration::from_secs_f64(options.timeout_seconds);
+    let before_server = server.read(timeout)?;
+    let before_client = client.read(timeout)?;
+    relay.process.stop()?;
+    server.write(json!({"action": "again"}))?;
+    client.write(json!({"action": "again"}))?;
+    let after_server = server.read(timeout)?;
+    let after_client = client.read(timeout)?;
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")?
+        .trim()
+        .to_owned();
+    Ok(json!({
+        "schema_version": 1,
+        "experiment": "quic",
+        "kernel": kernel,
+        "backend": "linux-nftables",
+        "profiles": {"a": Profile::Preserve, "b": Profile::Preserve},
+        "discovery": "stun",
+        "mapped": {
+            "a": client.ready["mapped"].clone(),
+            "b": server.ready["mapped"].clone(),
+        },
+        "data_before_relay_shutdown": before_client["data_before"] == true
+            && before_server["data_before"] == true,
+        "relay_shutdown": true,
+        "data_after_relay_shutdown": after_client["data_after"] == true
+            && after_server["data_after"] == true,
         "elapsed_seconds": (started.elapsed().as_secs_f64() * 1000.).round() / 1000.,
     }))
 }
