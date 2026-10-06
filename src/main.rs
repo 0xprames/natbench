@@ -45,6 +45,8 @@ enum Action {
     },
     #[command(name = "__endpoint", hide = true)]
     Endpoint { binds: String },
+    #[command(name = "__stun", hide = true)]
+    StunServer { binds: String },
     #[command(name = "__relay", hide = true)]
     Relay,
     /// Measure how long a UDP mapping survives, and which packets refresh it.
@@ -100,6 +102,11 @@ enum Action {
         #[arg(long)]
         wan_interface: String,
     },
+    /// Learn mapped addresses with STUN Binding requests on the traversal socket.
+    Stun {
+        #[arg(long, default_value_t = 2.)]
+        timeout: f64,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -113,6 +120,7 @@ fn execute(action: Action) -> Result<i32> {
                 loss_percent: 0,
                 nest_a: false,
                 translator: None,
+                stun: false,
                 executable: executable()?,
             })?;
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -144,6 +152,7 @@ fn execute(action: Action) -> Result<i32> {
                 .unwrap_or_else(|| 128 + status.signal().unwrap_or(1)));
         }
         Action::Endpoint { binds } => natbench::run_endpoint(&binds)?,
+        Action::StunServer { binds } => natbench::run_stun(&binds)?,
         Action::Relay => natbench::run_relay()?,
         Action::Lifetime {
             profile,
@@ -213,6 +222,13 @@ fn execute(action: Action) -> Result<i32> {
             lan_interface,
             wan_interface,
         } => natbench::run_nat(&lan_interface, &wan_interface)?,
+        Action::Stun { timeout } => {
+            let mut options = Options::current_exe()?;
+            options.stun = true;
+            options.timeout_seconds = timeout;
+            let result = bench::benchmark(&options)?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
     }
     Ok(0)
 }
@@ -224,7 +240,7 @@ fn main() {
     // Workers use the OS default termination behavior; only the controller owns cleanup.
     if !matches!(
         cli.command,
-        Action::Endpoint { .. } | Action::Relay | Action::Nat { .. }
+        Action::Endpoint { .. } | Action::StunServer { .. } | Action::Relay | Action::Nat { .. }
     ) {
         for signal in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {
             if let Err(error) =

@@ -3,6 +3,7 @@
 //! Network fixtures and measured NAT experiments for Linux.
 pub mod bench;
 pub mod lab;
+mod stun;
 mod translate;
 mod worker;
 
@@ -32,4 +33,8 @@ pub fn run_relay() -> anyhow::Result<()> {
 #[doc(hidden)]
 pub fn run_nat(lan: &str, wan: &str) -> anyhow::Result<()> {
     translate::run(lan, wan)
+}
+#[doc(hidden)]
+pub fn run_stun(binds: &str) -> anyhow::Result<()> {
+    worker::stun_server(binds)
 }
