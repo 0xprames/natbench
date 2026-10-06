@@ -136,6 +136,18 @@ enum Action {
         #[arg(value_parser = ["a", "b"])]
         role: String,
     },
+    /// Try a TCP simultaneous open on the preserve/preserve path.
+    Tcp {
+        #[arg(long, default_value_t = 10.)]
+        timeout: f64,
+    },
+    #[command(name = "__tcp", hide = true)]
+    TcpWorker {
+        #[arg(value_parser = ["a", "b"])]
+        role: String,
+    },
+    #[command(name = "__tcp-observer", hide = true)]
+    TcpObserver,
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -274,6 +286,15 @@ fn execute(action: Action) -> Result<i32> {
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
         Action::WebrtcWorker { role } => natbench::run_webrtc(&role)?,
+        Action::Tcp { timeout } => {
+            let result = bench::tcp(&bench::TcpOptions {
+                timeout_seconds: timeout,
+                executable: executable()?,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::TcpWorker { role } => natbench::run_tcp(&role)?,
+        Action::TcpObserver => natbench::run_tcp_observer()?,
         Action::Throughput {
             bytes,
             chunk,
@@ -304,6 +325,8 @@ fn main() {
             | Action::Nat { .. }
             | Action::QuicWorker { .. }
             | Action::WebrtcWorker { .. }
+            | Action::TcpWorker { .. }
+            | Action::TcpObserver
     ) {
         for signal in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {
             if let Err(error) =

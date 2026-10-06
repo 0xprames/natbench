@@ -19,6 +19,7 @@ const DESTINATIONS: [(&str, u16); 3] = [
     ("198.18.0.2", 9000),
 ];
 const CLIENT_A: &str = "10.1.0.2";
+const CLIENT_B: &str = "10.2.0.2";
 const CLIENT_A2: &str = "10.3.0.2";
 const CLIENT_SAME_LAN: &str = "10.1.0.3";
 
@@ -404,7 +405,7 @@ fn conntrack_tool_available() -> bool {
         .is_ok_and(|status| status.success())
 }
 
-fn conntrack_tool_dump(ns: &str) -> Result<String> {
+fn conntrack_tool_dump_protocol(ns: &str, protocol: &str) -> Result<String> {
     check_cancelled()?;
     let output = Command::new("ip")
         .args([
@@ -416,7 +417,7 @@ fn conntrack_tool_dump(ns: &str) -> Result<String> {
             "-f",
             "ipv4",
             "-p",
-            "udp",
+            protocol,
         ])
         .output()
         .context("run conntrack")?;
@@ -426,16 +427,20 @@ fn conntrack_tool_dump(ns: &str) -> Result<String> {
 }
 
 fn conntrack_dump(lab: &Lab) -> Result<String> {
+    conntrack_router(lab, "ra", "udp")
+}
+
+fn conntrack_router(lab: &Lab, router: &str, protocol: &str) -> Result<String> {
     // Ubuntu runners omit /proc/net/nf_conntrack inside a namespace. The
     // conntrack tool reads the same table over netlink.
     if conntrack_tool_available() {
         let ns = lab
             .namespaces
-            .get("ra")
+            .get(router)
             .context("missing router namespace")?;
-        return conntrack_tool_dump(ns);
+        return conntrack_tool_dump_protocol(ns, protocol);
     }
-    match lab.run("ra", &["cat", "/proc/net/nf_conntrack"]) {
+    match lab.run(router, &["cat", "/proc/net/nf_conntrack"]) {
         Ok(output) => Ok(String::from_utf8(output.stdout)?),
         Err(error) if error.to_string().contains("No such file or directory") => {
             bail!(
@@ -491,6 +496,118 @@ fn udp_flow_present(dump: &str, src: &str, sport: u16, dst: &str, dport: u16) ->
     dump.lines().any(|line| {
         ipv4_udp_line(line) && original_udp_tuple(line) == Some((src, sport, dst, dport))
     })
+}
+
+fn ipv4_tcp_line(line: &str) -> bool {
+    let mut fields = line.split_whitespace();
+    match fields.next() {
+        Some("tcp") => true,
+        Some("ipv4") => fields.any(|field| field == "tcp"),
+        _ => false,
+    }
+}
+
+struct ConntrackTuple {
+    src: String,
+    sport: u16,
+    dst: String,
+    dport: u16,
+}
+
+fn conntrack_tuples(line: &str) -> Vec<ConntrackTuple> {
+    let mut tuples = Vec::new();
+    let mut src = None;
+    let mut dst = None;
+    let mut sport = None;
+    let mut dport = None;
+    let mut started = false;
+    for field in line.split_whitespace() {
+        let Some((key, value)) = field.split_once('=') else {
+            continue;
+        };
+        if key == "src" {
+            if started {
+                push_tuple(
+                    &mut tuples,
+                    src.take(),
+                    sport.take(),
+                    dst.take(),
+                    dport.take(),
+                );
+            }
+            started = true;
+            src = Some(value.to_string());
+            continue;
+        }
+        if !started {
+            continue;
+        }
+        match key {
+            "dst" => dst = Some(value.to_string()),
+            "sport" => sport = value.parse().ok(),
+            "dport" => dport = value.parse().ok(),
+            _ => {}
+        }
+    }
+    push_tuple(&mut tuples, src, sport, dst, dport);
+    tuples
+}
+
+fn push_tuple(
+    tuples: &mut Vec<ConntrackTuple>,
+    src: Option<String>,
+    sport: Option<u16>,
+    dst: Option<String>,
+    dport: Option<u16>,
+) {
+    if let (Some(src), Some(sport), Some(dst), Some(dport)) = (src, sport, dst, dport) {
+        tuples.push(ConntrackTuple {
+            src,
+            sport,
+            dst,
+            dport,
+        });
+    }
+}
+
+fn tcp_state(line: &str) -> Option<&str> {
+    const STATES: &[&str] = &[
+        "SYN_SENT2",
+        "SYN_SENT",
+        "SYN_RECV",
+        "ESTABLISHED",
+        "FIN_WAIT",
+        "CLOSE_WAIT",
+        "LAST_ACK",
+        "TIME_WAIT",
+        "CLOSE",
+        "NONE",
+    ];
+    line.split_whitespace().find(|field| STATES.contains(field))
+}
+
+/// The reply tuple's destination is the WAN address and the mapped port.
+fn tcp_punch_flow(dump: &str, lan: &str, sport: u16) -> Value {
+    for line in dump.lines() {
+        if !ipv4_tcp_line(line) {
+            continue;
+        }
+        let tuples = conntrack_tuples(line);
+        let Some(origin) = tuples.first() else {
+            continue;
+        };
+        if origin.src != lan || origin.sport != sport {
+            continue;
+        }
+        let Some(reply) = tuples.get(1) else {
+            continue;
+        };
+        return json!({
+            "external": [reply.dst, reply.dport],
+            "state": tcp_state(line),
+        });
+    }
+    Value::Null
 }
 
 fn mapping_phase(
@@ -1115,6 +1232,63 @@ pub fn throughput(options: &ThroughputOptions) -> Result<Value> {
     }))
 }
 
+pub struct TcpOptions {
+    pub timeout_seconds: f64,
+    pub executable: PathBuf,
+}
+
+pub fn tcp(options: &TcpOptions) -> Result<Value> {
+    anyhow::ensure!(
+        options.timeout_seconds.is_finite()
+            && options.timeout_seconds > 0.
+            && options.timeout_seconds <= 3600.,
+        "invalid timeout"
+    );
+    let started = Instant::now();
+    let mut lab = Lab::create(Profile::Preserve, Profile::Preserve, RouterInput::Drop)?;
+    let _observer = Endpoint::launch(&mut lab, "wan", &options.executable, &["__tcp-observer"])?;
+    let relay = Endpoint::launch(&mut lab, "wan", &options.executable, &["__relay"])?;
+    let mut client_b = Endpoint::launch(&mut lab, "b", &options.executable, &["__tcp", "b"])?;
+    let mut client_a = Endpoint::launch(&mut lab, "a", &options.executable, &["__tcp", "a"])?;
+    let timeout = Duration::from_secs_f64(options.timeout_seconds);
+    let before_b = client_b.read(timeout)?;
+    let before_a = client_a.read(timeout)?;
+    let flow_a = tcp_punch_flow(&conntrack_router(&lab, "ra", "tcp")?, CLIENT_A, 10000);
+    let flow_b = tcp_punch_flow(&conntrack_router(&lab, "rb", "tcp")?, CLIENT_B, 10000);
+    relay.process.stop()?;
+    client_b.write(json!({"action": "again"}))?;
+    client_a.write(json!({"action": "again"}))?;
+    let after_b = client_b.read(timeout)?;
+    let after_a = client_a.read(timeout)?;
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")?
+        .trim()
+        .to_owned();
+    Ok(json!({
+        "schema_version": 1,
+        "experiment": "tcp",
+        "kernel": kernel,
+        "backend": "linux-nftables",
+        "profiles": {"a": Profile::Preserve, "b": Profile::Preserve},
+        "public_ip": {
+            "a": client_a.ready["public_ip"].clone(),
+            "b": client_b.ready["public_ip"].clone(),
+        },
+        "discovery_port": {
+            "a": client_a.ready["discovery_port"].clone(),
+            "b": client_b.ready["discovery_port"].clone(),
+        },
+        "punch_port": 10000,
+        "connected": before_a["connected"] == true && before_b["connected"] == true,
+        "flow": {"a": flow_a, "b": flow_b},
+        "data_before_relay_shutdown": before_a["data_before"] == true
+            && before_b["data_before"] == true,
+        "relay_shutdown": true,
+        "data_after_relay_shutdown": after_a["data_after"] == true
+            && after_b["data_after"] == true,
+        "elapsed_seconds": (started.elapsed().as_secs_f64() * 1000.).round() / 1000.,
+    }))
+}
+
 fn punch_both(
     sender: &mut Endpoint,
     receiver: &mut Endpoint,
@@ -1258,5 +1432,32 @@ udp      17 29 src=10.1.0.2 dst=198.18.0.1 sport=10000 dport=9000 [UNREPLIED] sr
         options.chunk = 1200;
         options.timeout_seconds = 0.;
         assert!(throughput(&options).is_err());
+    }
+    #[test]
+    fn invalid_tcp_timeout_does_not_create_namespaces() {
+        let options = TcpOptions {
+            timeout_seconds: 0.,
+            executable: PathBuf::from("natbench"),
+        };
+        assert!(tcp(&options).is_err());
+    }
+    #[test]
+    fn tcp_flow_uses_the_reply_tuple() {
+        let dump = "\
+tcp      6 431999 ESTABLISHED src=10.1.0.2 dst=198.18.0.20 sport=10000 dport=10000 src=198.18.0.20 dst=198.18.0.10 sport=10000 dport=40000 [ASSURED] mark=0 use=1
+tcp      6 100 SYN_SENT src=10.1.0.2 dst=198.18.0.1 sport=10001 dport=9200 src=198.18.0.1 dst=198.18.0.10 sport=9200 dport=10001 mark=0 use=1
+ipv4     2 tcp      6 431999 ESTABLISHED src=10.2.0.2 dst=198.18.0.10 sport=10000 dport=10000 src=198.18.0.10 dst=198.18.0.20 sport=10000 dport=10000 use=1
+udp      17 29 src=10.1.0.2 dst=198.18.0.20 sport=10000 dport=10000 src=198.18.0.20 dst=198.18.0.10 sport=10000 dport=10000 mark=0 use=1
+";
+        assert_eq!(
+            tcp_punch_flow(dump, CLIENT_A, 10000),
+            json!({"external": ["198.18.0.10", 40000], "state": "ESTABLISHED"})
+        );
+        assert_eq!(
+            tcp_punch_flow(dump, CLIENT_B, 10000),
+            json!({"external": ["198.18.0.20", 10000], "state": "ESTABLISHED"})
+        );
+        assert!(tcp_punch_flow(dump, CLIENT_A, 10001)["external"][1] != 10000);
+        assert!(tcp_punch_flow("", CLIENT_A, 10000).is_null());
     }
 }

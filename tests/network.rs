@@ -1,8 +1,8 @@
 use natbench::{
     bench::{
-        benchmark, collision, hairpin, lifetime, matrix, quic, throughput, webrtc,
-        CollisionOptions, HairpinOptions, LifetimeOptions, Options, QuicOptions, ThroughputOptions,
-        WebrtcOptions,
+        benchmark, collision, hairpin, lifetime, matrix, quic, tcp, throughput, webrtc,
+        CollisionOptions, HairpinOptions, LifetimeOptions, Options, QuicOptions, TcpOptions,
+        ThroughputOptions, WebrtcOptions,
     },
     lab::{Lab, Profile, RouterInput},
 };
@@ -391,5 +391,39 @@ fn punched_udp_transfer_moves_the_requested_bytes() {
         result["receive_bytes_per_second"].as_f64().unwrap() > 0.,
         "{result}"
     );
+    assert_eq!(before, namespaces());
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn tcp_simultaneous_open_between_preserve_peers() {
+    let before = namespaces();
+    let result = tcp(&TcpOptions {
+        timeout_seconds: 10.,
+        executable: env!("CARGO_BIN_EXE_natbench").into(),
+    })
+    .unwrap();
+    assert_eq!(result["experiment"], "tcp");
+    assert_eq!(result["public_ip"]["a"], "198.18.0.10", "{result}");
+    assert_eq!(result["public_ip"]["b"], "198.18.0.20", "{result}");
+    assert_eq!(result["discovery_port"]["a"], 10001, "{result}");
+    assert_eq!(result["discovery_port"]["b"], 10001, "{result}");
+    assert_eq!(result["punch_port"], 10000);
+    assert_eq!(result["connected"], true, "{result}");
+    assert_eq!(
+        result["flow"]["a"]["external"][0], "198.18.0.10",
+        "{result}"
+    );
+    assert_eq!(result["flow"]["a"]["external"][1], 10000, "{result}");
+    assert_eq!(
+        result["flow"]["b"]["external"][0], "198.18.0.20",
+        "{result}"
+    );
+    assert_eq!(result["flow"]["b"]["external"][1], 10000, "{result}");
+    assert_eq!(result["flow"]["a"]["state"], "ESTABLISHED", "{result}");
+    assert_eq!(result["flow"]["b"]["state"], "ESTABLISHED", "{result}");
+    assert_eq!(result["data_before_relay_shutdown"], true, "{result}");
+    assert_eq!(result["relay_shutdown"], true);
+    assert_eq!(result["data_after_relay_shutdown"], true, "{result}");
     assert_eq!(before, namespaces());
 }
