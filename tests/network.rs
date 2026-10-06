@@ -1,0 +1,137 @@
+use natbench::{
+    bench::{benchmark, matrix, Options},
+    lab::{Lab, Profile, RouterInput},
+};
+use serde_json::Value;
+use std::{
+    collections::BTreeSet,
+    io::{BufRead, BufReader},
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
+};
+
+fn namespaces() -> BTreeSet<String> {
+    let output = Command::new("ip").args(["netns", "list"]).output().unwrap();
+    assert!(output.status.success());
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+fn options() -> Options {
+    Options {
+        a: Profile::Preserve,
+        b: Profile::Preserve,
+        router_input: RouterInput::Drop,
+        timeout_seconds: 1.,
+        executable: env!("CARGO_BIN_EXE_natbench").into(),
+    }
+}
+fn wait_bounded(child: &mut std::process::Child) -> std::process::ExitStatus {
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            return status;
+        }
+        if Instant::now() > deadline {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            panic!("child did not stop within eight seconds");
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn real_network_matrix_and_lifecycle() {
+    let before = namespaces();
+    let results = matrix(&options()).unwrap();
+    assert_eq!(results.len(), 9);
+    for result in &results {
+        assert_eq!(result["schema_version"], 1);
+        assert_eq!(result["relay"]["bidirectional_before"], true, "{result}");
+        assert_eq!(
+            result["relay"]["bidirectional_after_restart"], true,
+            "{result}"
+        );
+        for side in ["a", "b"] {
+            assert_eq!(result["relay"]["outage_detected"][side], true, "{result}");
+            let profile = result["profiles"][side].as_str().unwrap();
+            let observation = &result["observations"][side];
+            if profile == "udp-blocked" {
+                assert_eq!(observation["mapping"], "unobserved");
+            } else {
+                assert_eq!(observation["filtering"], "address-and-port-dependent");
+            }
+            if profile == "preserve" {
+                assert_eq!(observation["port_preserved"], true);
+            }
+        }
+        if result["profiles"] == serde_json::json!({"a": "preserve", "b": "preserve"}) {
+            assert_eq!(result["traversal"]["bidirectional"], true, "{result}");
+            assert_eq!(result["traversal"]["after_observer_shutdown"]["a"], true);
+            assert_eq!(result["traversal"]["after_observer_shutdown"]["b"], true);
+        } else if result["profiles"]["a"] == "udp-blocked"
+            || result["profiles"]["b"] == "udp-blocked"
+            || result["profiles"] == serde_json::json!({"a": "random", "b": "random"})
+        {
+            assert_eq!(result["traversal"]["bidirectional"], false, "{result}");
+        }
+    }
+    assert_eq!(before, namespaces());
+    let mut collision = options();
+    collision.router_input = RouterInput::Accept;
+    let result = benchmark(&collision).unwrap();
+    assert_eq!(result["traversal"]["bidirectional"], false, "{result}");
+    assert_eq!(before, namespaces());
+
+    // Force a user operation to fail while a child is running; dropping the fixture
+    // must remove its processes and network resources on the error path.
+    let failed = (|| -> anyhow::Result<()> {
+        let mut lab = Lab::create(Profile::Preserve, Profile::Preserve, RouterInput::Drop)?;
+        lab.spawn("a", &["sleep", "60"])?;
+        lab.run("b", &["false"])?;
+        Ok(())
+    })();
+    assert!(failed.is_err());
+    assert_eq!(before, namespaces());
+
+    let status = Command::new(env!("CARGO_BIN_EXE_natbench"))
+        .args(["run", "--", "false"])
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(1));
+    assert_eq!(before, namespaces());
+    for signal in [libc::SIGTERM, libc::SIGINT] {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_natbench"))
+            .args(["run", "--", "sh", "-c", "echo ready; sleep 60 & wait"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut reader = BufReader::new(child.stdout.take().unwrap());
+        let mut ready = String::new();
+        reader.read_line(&mut ready).unwrap();
+        assert_eq!(ready.trim(), "ready");
+        // SAFETY: the child is a live, positively identified process we own.
+        assert_eq!(unsafe { libc::kill(child.id() as i32, signal) }, 0);
+        assert_eq!(wait_bounded(&mut child).code(), Some(130));
+        assert_eq!(before, namespaces());
+    }
+    // Check the CLI output is parseable and the result schema remains usable.
+    let output = Command::new(env!("CARGO_BIN_EXE_natbench"))
+        .args(["bench", "--a", "udp-blocked", "--b", "random"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["traversal"]["bidirectional"], false);
+    assert_eq!(result["relay"]["bidirectional_after_restart"], true);
+    assert_eq!(before, namespaces());
+}

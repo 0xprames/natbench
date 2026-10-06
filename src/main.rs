@@ -1,0 +1,123 @@
+use anyhow::Result;
+use clap::{Args, Parser, Subcommand};
+use natbench::{
+    bench::{self, Options},
+    lab::{Lab, Profile, RouterInput},
+};
+use std::{path::PathBuf, sync::atomic::Ordering};
+
+#[derive(Parser)]
+#[command(version, about = "Measure NAT behavior in isolated Linux networks")]
+struct Cli {
+    #[command(subcommand)]
+    command: Action,
+}
+#[derive(Args)]
+struct Network {
+    #[arg(long, value_enum, default_value = "preserve")]
+    a: Profile,
+    #[arg(long, value_enum, default_value = "preserve")]
+    b: Profile,
+    #[arg(long, value_enum, default_value = "drop")]
+    router_input: RouterInput,
+}
+#[derive(Subcommand)]
+enum Action {
+    Bench {
+        #[command(flatten)]
+        network: Network,
+        #[arg(long, default_value_t = 2.)]
+        timeout: f64,
+    },
+    Matrix {
+        #[arg(long, value_enum, default_value = "drop")]
+        router_input: RouterInput,
+        #[arg(long, default_value_t = 2.)]
+        timeout: f64,
+    },
+    Run {
+        #[command(flatten)]
+        network: Network,
+        #[arg(long, default_value = "a", value_parser = ["a", "b", "ra", "rb", "wan"])]
+        role: String,
+        #[arg(last = true, required = true)]
+        argv: Vec<String>,
+    },
+    #[command(name = "__endpoint", hide = true)]
+    Endpoint { binds: String },
+    #[command(name = "__relay", hide = true)]
+    Relay,
+}
+fn execute(action: Action) -> Result<i32> {
+    match action {
+        Action::Bench { network, timeout } => {
+            let result = bench::benchmark(&Options {
+                a: network.a,
+                b: network.b,
+                router_input: network.router_input,
+                timeout_seconds: timeout,
+                executable: executable()?,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::Matrix {
+            router_input,
+            timeout,
+        } => {
+            let mut options = Options::current_exe()?;
+            options.router_input = router_input;
+            options.timeout_seconds = timeout;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&bench::matrix(&options)?)?
+            );
+        }
+        Action::Run {
+            network,
+            role,
+            argv,
+        } => {
+            let mut lab = Lab::create(network.a, network.b, network.router_input)?;
+            let status = lab
+                .spawn(&role, &argv.iter().map(String::as_str).collect::<Vec<_>>())?
+                .wait()?;
+            use std::os::unix::process::ExitStatusExt;
+            return Ok(status
+                .code()
+                .unwrap_or_else(|| 128 + status.signal().unwrap_or(1)));
+        }
+        Action::Endpoint { binds } => natbench::run_endpoint(&binds)?,
+        Action::Relay => natbench::run_relay()?,
+    }
+    Ok(0)
+}
+fn executable() -> Result<PathBuf> {
+    Ok(std::env::current_exe()?)
+}
+fn main() {
+    let cli = Cli::parse();
+    // Workers use the OS default termination behavior; only the controller owns cleanup.
+    if !matches!(cli.command, Action::Endpoint { .. } | Action::Relay) {
+        for signal in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {
+            if let Err(error) =
+                signal_hook::flag::register(signal, natbench::cancellation().clone())
+            {
+                eprintln!("natbench: register signal handler: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
+    let result = execute(cli.command);
+    let code = if natbench::cancellation().load(Ordering::Relaxed) {
+        130
+    } else {
+        match result {
+            Ok(code) => code,
+            Err(error) => {
+                eprintln!("natbench: {error:#}");
+                1
+            }
+        }
+    };
+    std::process::exit(code);
+}

@@ -1,7 +1,7 @@
 # natbench
 
 Measure NAT behavior and exercise UDP traversal, TCP fallback, and recovery
-in isolated Linux networks. Bring your own program with a small Python fixture.
+in isolated Linux networks. Bring your own program with a small Rust fixture.
 
 NAT labels alone don't tell you whether peers can connect. `natbench` observes
 public mappings, probes inbound filtering separately, attempts simultaneous
@@ -9,28 +9,33 @@ UDP hole punching, and removes discovery and relay processes to check whether
 a direct path actually works without them.
 
 This is an experimental correctness harness, not a throughput benchmark or a
-complete RFC conformance suite. It uses Python's standard library, Linux network
-namespaces, and nftables. No application daemon or container runtime is required.
+complete RFC conformance suite. It ships as a Rust binary using Linux network
+namespaces and nftables. The same executable supplies the UDP endpoints and relay.
+No application daemon or container runtime is required.
 
 ## Quick start
 
-Requirements: Linux, Python 3.10+, root, iproute2, and nftables. On Debian/Ubuntu:
+Requirements: Linux, root, iproute2, and nftables. Build with a current stable
+Rust toolchain; the resulting binary has no Python or Rust runtime dependency.
+On Debian/Ubuntu, from the repository root:
 
 ```sh
 sudo apt-get install iproute2 nftables
-sudo python3 -m natbench.cli bench
-sudo python3 -m natbench.cli bench --a preserve --b random
-sudo python3 -m natbench.cli matrix > results.json
-sudo python3 -m natbench.cli bench --router-input accept
-sudo python3 -m natbench.cli run --role a -- ip route
+cargo build --release --locked
+sudo ./target/release/natbench bench
+sudo ./target/release/natbench bench --a preserve --b random
+sudo ./target/release/natbench matrix > results.json
+sudo ./target/release/natbench bench --router-input accept
+sudo ./target/release/natbench run --role a -- ip route
 ```
 
-From a checkout, run these commands in the repository root. Alternatively, install with `python3 -m pip install .`
-and use `sudo natbench bench` if the installed entry point is on root's PATH.
+Alternatively, `cargo install --path . --locked` installs the command. Use the
+absolute path to the installed executable with sudo if it is not on root's PATH.
+This project has not been published to crates.io.
 
 `bench` emits one JSON result; `matrix` emits all nine ordered profile pairs.
 A failed traversal is a measured result and exits successfully. Setup or endpoint
-failures exit nonzero. Use the Python API or inspect JSON for your own CI policy;
+failures exit nonzero. Use the Rust API or inspect JSON for your own CI policy;
 there is no universal expected outcome for arbitrary NATs.
 
 ## Network fixture
@@ -84,26 +89,35 @@ new payloads, not durable retry of messages queued before an outage.
 
 If forwarded UDP is blocked, mapping/filtering are `unobserved`; absence of packets
 is not enough to infer a NAT class. `--timeout` sets the hole-punch attempt window
-(default 2 seconds); control exchanges can add a small amount of time to that window.
+(default 2 seconds, maximum 3600); control exchanges can add a small amount of time
+to that window.
 
 ## Bring your own programs
 
-```python
-from natbench import Lab
+```rust,no_run
+use natbench::lab::{Lab, Profile, RouterInput};
 
-with Lab(a="preserve", b="random") as lab:
-    server = lab.spawn("b", "./your-server", "--listen", "0.0.0.0:7000")
-    # Arrange discovery/readiness for your protocol, then run the client:
-    print(lab.run("a", "ip", "route").stdout)
-    print(lab.namespaces)  # Roles: a, b, ra, rb, wan
+fn main() -> anyhow::Result<()> {
+    let mut lab = Lab::create(Profile::Preserve, Profile::Random, RouterInput::Drop)?;
+    let _server = lab.spawn("b", &["./your-server", "--listen", "0.0.0.0:7000"])?;
+    // Arrange discovery/readiness for your protocol, then run the client:
+    let routes = lab.run("a", &["ip", "route"])?;
+    println!("{}", String::from_utf8_lossy(&routes.stdout));
+    println!("{:?}", lab.namespaces); // Roles: a, b, ra, rb, wan
+    Ok(())
+} // Lab's Drop terminates tracked children and removes namespaces.
 ```
 
-`spawn` inherits stdio unless you specify it; `run` captures output and checks exit
-status. Processes and namespaces are removed when the context exits, including
-exceptions. The CLI also handles SIGINT/SIGTERM. SIGKILL or machine failure can leave
-resources behind: inspect `ip netns list` for namespaces beginning with `nb`, confirm
-ownership, then remove them manually. Cleanup also kills child processes still in
-this run's namespaces. This fixture owns the lifecycle of programs launched into it.
+`spawn` inherits stdio; `run` captures output and checks exit status. Keep the `Lab`
+alive while using its processes. Its `Drop` implementation cleans up after normal
+returns, errors, and unwinding panics. The CLI also handles SIGINT/SIGTERM and exits
+130 after cleanup. Embedded applications must install their own signal handling;
+they can register `natbench::cancellation()` with signal-hook.
+
+SIGKILL, aborting panics, or machine failure can leave resources behind: inspect
+`ip netns list` for namespaces beginning with `nb`, confirm ownership, then remove
+them manually. Cleanup also kills child processes still in this run's namespaces.
+This fixture owns the lifecycle of programs launched into it.
 
 ## Lessons that shaped the design
 
@@ -156,11 +170,17 @@ IPv6, TCP hole punching, and performance measurement are outside the current sui
 ## Development
 
 ```sh
-sudo python3 -m unittest discover -s tests -v
+cargo fmt --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
+# Compile as your normal account, then run privileged test binaries via Cargo:
+sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
+  cargo test --locked -- --include-ignored --test-threads=1
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, partial setup failure, process cleanup, and SIGTERM handling.
+input collision, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.
 
