@@ -2,7 +2,8 @@
 
 ## 0.1.1
 
-Prepared M1 release; publication follows merge, clean CI, and a version-matching tag.
+Prepared M1 release; publication follows merge, clean CI, and a version-matching
+tag whose commit is reachable from `main`.
 
 - Declarative built-in suites with explicit expectations, distinct CI verdicts,
   JSON/JUnit evidence, and artifact overwrite protection.

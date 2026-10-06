@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get update && sudo apt-get install -y iproute2 nftables conntrack build-essential cmake
       - run: cargo test --locked
@@ -33,7 +35,9 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           TARGET: ${{ matrix.target }}
-        run: test "$(./target/$TARGET/release/natbench --version)" = "natbench ${RELEASE_TAG#v}"
+        run: |
+          test "$(./target/$TARGET/release/natbench --version)" = "natbench ${RELEASE_TAG#v}"
+          git merge-base --is-ancestor HEAD origin/main
       - name: Package binary and verify checksum
         env:
           TARGET: ${{ matrix.target }}
