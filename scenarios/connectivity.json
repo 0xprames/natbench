@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "direct path survives discovery and relay shutdown",
+      "a": "preserve", "b": "preserve", "router_input": "drop", "timeout_seconds": 2,
+      "expect": [
+        {"pointer": "/traversal/bidirectional", "equals": true},
+        {"pointer": "/traversal/after_observer_shutdown/a", "equals": true},
+        {"pointer": "/traversal/after_observer_shutdown/b", "equals": true},
+        {"pointer": "/relay/bidirectional_after_restart", "equals": true}
+      ]
+    },
+    {
+      "name": "UDP blocked while TCP relay remains usable",
+      "a": "udp-blocked", "b": "preserve", "router_input": "drop", "timeout_seconds": 2,
+      "expect": [
+        {"pointer": "/traversal/bidirectional", "equals": false},
+        {"pointer": "/relay/bidirectional_before", "equals": true},
+        {"pointer": "/relay/outage_detected/a", "equals": true},
+        {"pointer": "/relay/bidirectional_after_restart", "equals": true}
+      ]
+    }
+  ]
+}

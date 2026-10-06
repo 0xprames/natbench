@@ -23,6 +23,12 @@ struct Network {
 }
 #[derive(Subcommand)]
 enum Action {
+    /// Execute a declarative built-in suite with CI assertions and JSON/JUnit artifacts.
+    Test {
+        scenario: PathBuf,
+        #[arg(long)]
+        artifacts: PathBuf,
+    },
     Bench {
         #[command(flatten)]
         network: Network,
@@ -151,6 +157,23 @@ enum Action {
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
+        Action::Test {
+            scenario,
+            artifacts,
+        } => {
+            let report = match natbench::scenario::run(&scenario, &artifacts) {
+                Ok(report) => report,
+                Err(error) => {
+                    eprintln!("natbench test: {error:#}");
+                    return Ok(2);
+                }
+            };
+            for case in &report.cases {
+                eprintln!("{:?}: {}", case.status, case.name);
+            }
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(report.exit_code());
+        }
         Action::Bench { network, timeout } => {
             let result = bench::benchmark(&Options {
                 a: network.a,
