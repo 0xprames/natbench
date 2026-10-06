@@ -280,3 +280,59 @@ fn cancellation_keeps_application_logs_and_partial_report() {
     );
     assert_eq!(before, namespace_snapshot());
 }
+
+#[test]
+#[ignore = "requires root and Linux namespaces"]
+fn terminal_interrupt_during_namespace_creation_does_not_leak() {
+    use std::os::unix::{fs::PermissionsExt, process::CommandExt};
+    let before = namespace_snapshot();
+    let root = Temp::new("setup-interrupt");
+    let marker = root.0.join("created");
+    let wrapper = root.0.join("ip");
+    // The generated paths use only our fixed ASCII test prefix and numeric PID.
+    let script=format!("#!/bin/sh\n/usr/sbin/ip \"$@\"\nresult=$?\nif [ \"$1\" = netns ] && [ \"$2\" = add ] && [ \"$result\" = 0 ]; then\n printf '%s' \"$3\" > '{}'\n sleep 0.3\nfi\nexit \"$result\"\n",marker.display());
+    fs::write(&wrapper, script).unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o755)).unwrap();
+    let suite = scenario(
+        json!([program("client", json!(["true"]), 1., Value::Null)]),
+        json!([{"action":"run","process":"client"}]),
+    );
+    let source = root.0.join("suite.json");
+    fs::write(&source, serde_json::to_vec(&suite).unwrap()).unwrap();
+    let path = format!("{}:{}", root.0.display(), std::env::var("PATH").unwrap());
+    let mut child = Command::new(env!("CARGO_BIN_EXE_natbench"))
+        .arg("test")
+        .arg(source)
+        .arg("--artifacts")
+        .arg(root.0.join("artifacts"))
+        .env("PATH", path)
+        .process_group(0)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !marker.exists() {
+        if Instant::now() > deadline {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            panic!("setup marker missing");
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    // SAFETY: the child has a dedicated process group; this simulates terminal Ctrl-C.
+    assert_eq!(unsafe { libc::kill(-(child.id() as i32), libc::SIGINT) }, 0);
+    let status = child.wait().unwrap();
+    let after = namespace_snapshot();
+    if before != after {
+        // Clean only the namespace named by this test's successful create operation.
+        let name = fs::read_to_string(marker).unwrap();
+        if name.starts_with("nb") {
+            let _ = Command::new("/usr/sbin/ip")
+                .args(["netns", "del", &name])
+                .output();
+        }
+    }
+    assert_eq!(status.code(), Some(130));
+    assert_eq!(before, after);
+}

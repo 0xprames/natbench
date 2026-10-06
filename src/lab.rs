@@ -529,9 +529,13 @@ fn checked(output: Output, args: &[&str]) -> Result<Output> {
 }
 fn host(args: &[&str]) -> Result<Output> {
     crate::check_cancelled()?;
+    use std::os::unix::process::CommandExt;
+    // Complete short ownership-changing operations before handling cancellation.
+    // Terminal SIGINT must not kill the helper between creation and bookkeeping.
     checked(
         Command::new(args[0])
             .args(&args[1..])
+            .process_group(0)
             .output()
             .with_context(|| format!("run {}", args[0]))?,
         args,
