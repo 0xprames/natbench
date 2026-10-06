@@ -1,5 +1,5 @@
 use natbench::{
-    bench::{benchmark, lifetime, matrix, LifetimeOptions, Options},
+    bench::{benchmark, collision, lifetime, matrix, CollisionOptions, LifetimeOptions, Options},
     lab::{Lab, Profile, RouterInput},
 };
 use serde_json::Value;
@@ -155,5 +155,30 @@ fn mapping_expires_without_traffic_and_refreshes_from_either_direction() {
         assert_eq!(result[phase]["conntrack_present"], true, "{result}");
         assert_eq!(result[phase]["return_traffic"], true, "{result}");
     }
+    assert_eq!(before, namespaces());
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn preserve_keeps_the_first_mapping_when_the_source_port_collides() {
+    let before = namespaces();
+    let result = collision(&CollisionOptions {
+        profile: Profile::Preserve,
+        router_input: RouterInput::Drop,
+        executable: env!("CARGO_BIN_EXE_natbench").into(),
+    })
+    .unwrap();
+    assert_eq!(result["experiment"], "port-collision");
+    assert_eq!(result["behavior"], "port-preserving", "{result}");
+    assert_eq!(result["first"]["port_preserved"], true, "{result}");
+    assert_eq!(result["second"]["port_preserved"], false, "{result}");
+    assert_eq!(
+        result["first"]["conntrack_present_after_collision"], true,
+        "{result}"
+    );
+    assert_eq!(
+        result["first"]["mapped_endpoint_after_collision"], result["first"]["mapped_endpoint"],
+        "{result}"
+    );
     assert_eq!(before, namespaces());
 }

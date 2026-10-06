@@ -90,6 +90,35 @@ impl Lab {
         lab.setup(a, b, input)?;
         Ok(lab)
     }
+    /// Add a second client behind router A on 10.3.0.2. It uses that router's masquerade.
+    pub fn add_lan_client(&mut self) -> Result<()> {
+        anyhow::ensure!(
+            !self.namespaces.contains_key("a2"),
+            "lan client already added"
+        );
+        let suffix = self.namespaces["wan"]
+            .trim_start_matches("nb")
+            .trim_end_matches("-wan")
+            .to_owned();
+        let name = format!("nb{suffix}-a2");
+        host(&["ip", "netns", "add", &name])?;
+        self.created.push(name.clone());
+        self.namespaces.insert("a2".into(), name);
+        self.run("a2", &["ip", "link", "set", "lo", "up"])?;
+        self.link("a2", "eth0", "ra", "lan2")?;
+        self.run("a2", &["ip", "addr", "add", "10.3.0.2/24", "dev", "eth0"])?;
+        self.run("ra", &["ip", "addr", "add", "10.3.0.1/24", "dev", "lan2"])?;
+        self.run("a2", &["ip", "route", "add", "default", "via", "10.3.0.1"])?;
+        // The fixture only forwards the original LAN interface. This client needs the same path.
+        self.run(
+            "ra",
+            &[
+                "nft", "add", "rule", "ip", "firewall", "transit", "iifname", "lan2", "oifname",
+                "wan", "accept",
+            ],
+        )?;
+        Ok(())
+    }
     fn command(&self, role: &str, args: &[&str]) -> Result<Command> {
         let ns = self
             .namespaces

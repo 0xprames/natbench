@@ -19,6 +19,7 @@ const DESTINATIONS: [(&str, u16); 3] = [
     ("198.18.0.2", 9000),
 ];
 const CLIENT_A: &str = "10.1.0.2";
+const CLIENT_A2: &str = "10.3.0.2";
 
 /// The helper executable must be a natbench binary (normally current_exe()).
 pub struct Options {
@@ -567,6 +568,145 @@ pub fn lifetime(options: &LifetimeOptions) -> Result<Value> {
     }))
 }
 
+/// Two clients behind one router, both bound to the same source port.
+pub struct CollisionOptions {
+    pub profile: Profile,
+    pub router_input: RouterInput,
+    pub executable: PathBuf,
+}
+
+fn mapped_port(endpoint: &Value) -> Option<u64> {
+    endpoint.get(1).and_then(Value::as_u64)
+}
+
+fn collision_behavior(
+    first_present: bool,
+    second_present: bool,
+    first_port: Option<u64>,
+    second_port: Option<u64>,
+) -> &'static str {
+    match (first_present, second_present, first_port, second_port) {
+        (true, true, Some(first), Some(second)) if first != second => "port-preserving",
+        (false, true, Some(first), Some(second)) if first == second => "port-overloading",
+        _ => "inconclusive",
+    }
+}
+
+pub fn collision(options: &CollisionOptions) -> Result<Value> {
+    let started = Instant::now();
+    let mut lab = Lab::create(options.profile, options.profile, options.router_input)?;
+    lab.add_lan_client()?;
+    let mut observer = Endpoint::udp(
+        &mut lab,
+        "wan",
+        &options.executable,
+        json!([DESTINATIONS[0]]),
+    )?;
+    let mut first = Endpoint::udp(
+        &mut lab,
+        "a",
+        &options.executable,
+        json!([["0.0.0.0", 10000]]),
+    )?;
+    let mut second = Endpoint::udp(
+        &mut lab,
+        "a2",
+        &options.executable,
+        json!([["0.0.0.0", 10000]]),
+    )?;
+    let first_sport = first.ready["ready"][0][1]
+        .as_u64()
+        .context("local port missing")?;
+    let second_sport = second.ready["ready"][0][1]
+        .as_u64()
+        .context("local port missing")?;
+    anyhow::ensure!(
+        first_sport <= u16::MAX as u64 && second_sport <= u16::MAX as u64,
+        "local port missing"
+    );
+    first.send(0, destination(0), "open-first")?;
+    let first_packet = observer.receive("open-first", 0.5)?;
+    let (first_report, second_report, behavior) = if first_packet.is_null() {
+        (Value::Null, Value::Null, "unobserved")
+    } else {
+        let dump = conntrack_dump(&lab)?;
+        anyhow::ensure!(
+            udp_flow_present(
+                &dump,
+                CLIENT_A,
+                first_sport as u16,
+                DESTINATIONS[0].0,
+                DESTINATIONS[0].1
+            ),
+            "translated packet has no conntrack entry:\n{dump}"
+        );
+        second.send(0, destination(0), "open-second")?;
+        let second_packet = observer.receive("open-second", 0.5)?;
+        let dump = conntrack_dump(&lab)?;
+        let first_present = udp_flow_present(
+            &dump,
+            CLIENT_A,
+            first_sport as u16,
+            DESTINATIONS[0].0,
+            DESTINATIONS[0].1,
+        );
+        let second_present = !second_packet.is_null()
+            && udp_flow_present(
+                &dump,
+                CLIENT_A2,
+                second_sport as u16,
+                DESTINATIONS[0].0,
+                DESTINATIONS[0].1,
+            );
+        first.send(0, destination(0), "again-first")?;
+        let again = observer.receive("again-first", 0.5)?;
+        let behavior = if second_packet.is_null() {
+            "second-unobserved"
+        } else {
+            collision_behavior(
+                first_present,
+                second_present,
+                mapped_port(&first_packet["from"]),
+                mapped_port(&second_packet["from"]),
+            )
+        };
+        let first_report = json!({
+            "lan": [CLIENT_A, first_sport],
+            "mapped_endpoint": first_packet["from"],
+            "port_preserved": mapped_port(&first_packet["from"]) == Some(first_sport),
+            "conntrack_present_after_collision": first_present,
+            "mapped_endpoint_after_collision": again.get("from").cloned().unwrap_or(Value::Null),
+        });
+        let second_report = if second_packet.is_null() {
+            Value::Null
+        } else {
+            json!({
+                "lan": [CLIENT_A2, second_sport],
+                "mapped_endpoint": second_packet["from"],
+                "port_preserved": mapped_port(&second_packet["from"]) == Some(second_sport),
+                "conntrack_present": second_present,
+            })
+        };
+        (first_report, second_report, behavior)
+    };
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")?
+        .trim()
+        .to_owned();
+    Ok(json!({
+        "schema_version": 1,
+        "experiment": "port-collision",
+        "kernel": kernel,
+        "backend": "linux-nftables",
+        "profile": options.profile,
+        "router_input": options.router_input,
+        "established": !first_packet.is_null(),
+        "behavior": behavior,
+        "first": first_report,
+        "second": second_report,
+        "elapsed_seconds": (started.elapsed().as_secs_f64() * 1000.).round() / 1000.,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -633,5 +773,20 @@ udp      17 29 src=10.1.0.2 dst=198.18.0.1 sport=10000 dport=9000 [UNREPLIED] sr
             "198.18.0.10",
             10000
         ));
+    }
+    #[test]
+    fn collision_classes_cover_preserve_and_overload() {
+        assert_eq!(
+            collision_behavior(true, true, Some(10000), Some(40000)),
+            "port-preserving"
+        );
+        assert_eq!(
+            collision_behavior(false, true, Some(10000), Some(10000)),
+            "port-overloading"
+        );
+        assert_eq!(
+            collision_behavior(true, true, Some(10000), Some(10000)),
+            "inconclusive"
+        );
     }
 }
