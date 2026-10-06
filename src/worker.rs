@@ -5,7 +5,10 @@ use std::{
     fs::File,
     io::{self, BufRead, BufReader, Read, Write},
     net::{SocketAddr, TcpListener, TcpStream, UdpSocket},
-    sync::{Arc, Mutex},
+    sync::{
+        mpsc::{self, Receiver},
+        Arc, Mutex, OnceLock,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -95,11 +98,129 @@ pub fn endpoint(binds: &str) -> Result<()> {
                 Ok(response) => json!({"ok": true, "response": response}),
                 Err(error) => json!({"ok": false, "error": error.to_string()}),
             },
+            Some("arm") => arm(
+                sockets
+                    .get(request["socket"].as_u64().unwrap_or(0) as usize)
+                    .context("unknown socket index")?,
+                &request,
+            )?,
+            Some("blast") => blast(
+                sockets
+                    .get(request["socket"].as_u64().unwrap_or(0) as usize)
+                    .context("unknown socket index")?,
+                &request,
+            )?,
+            Some("report") => report(&request)?,
             _ => bail!("unknown endpoint action"),
         };
         emit(&response)?;
     }
     Ok(())
+}
+fn transfer_limits(request: &Value) -> Result<(u64, f64)> {
+    let bytes = request["bytes"].as_u64().context("byte count missing")?;
+    let seconds = request["timeout"].as_f64().unwrap_or(2.);
+    anyhow::ensure!(
+        (1..=16 * 1024 * 1024).contains(&bytes),
+        "invalid byte count"
+    );
+    anyhow::ensure!(
+        seconds.is_finite() && seconds > 0.,
+        "invalid receive timeout"
+    );
+    Ok((bytes, seconds))
+}
+fn rate(bytes: u64, elapsed: Duration) -> Value {
+    let seconds = elapsed.as_secs_f64();
+    json!({
+        "bytes": bytes,
+        "elapsed_seconds": (seconds * 1000.).round() / 1000.,
+        "bytes_per_second": if seconds > 0. { (bytes as f64 / seconds).round() } else { 0. },
+    })
+}
+fn catch_slot() -> &'static Mutex<Option<Receiver<Value>>> {
+    static SLOT: OnceLock<Mutex<Option<Receiver<Value>>>> = OnceLock::new();
+    SLOT.get_or_init(|| Mutex::new(None))
+}
+fn arm(socket: &UdpSocket, request: &Value) -> Result<Value> {
+    let (bytes, seconds) = transfer_limits(request)?;
+    socket2::SockRef::from(socket)
+        .set_recv_buffer_size(4 * 1024 * 1024)
+        .ok();
+    let mut buf = [0u8; 2048];
+    while socket.recv_from(&mut buf).is_ok() {}
+    let socket = socket.try_clone()?;
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(catch(&socket, bytes, seconds));
+    });
+    *catch_slot().lock().unwrap() = Some(rx);
+    Ok(json!({"armed": true}))
+}
+fn catch(socket: &UdpSocket, bytes: u64, seconds: f64) -> Value {
+    let deadline = Instant::now() + Duration::from_secs_f64(seconds);
+    let mut received = 0u64;
+    let mut started = None;
+    let mut buf = [0u8; 2048];
+    while received < bytes && Instant::now() < deadline {
+        match socket.recv_from(&mut buf) {
+            Ok((length, _)) => {
+                if started.is_none() {
+                    started = Some(Instant::now());
+                }
+                received += length as u64;
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_micros(100));
+            }
+            Err(_) => break,
+        }
+    }
+    let elapsed = started.map(|start| start.elapsed()).unwrap_or_default();
+    rate(received, elapsed)
+}
+fn report(request: &Value) -> Result<Value> {
+    let seconds = request["timeout"].as_f64().unwrap_or(2.);
+    anyhow::ensure!(
+        seconds.is_finite() && seconds > 0.,
+        "invalid receive timeout"
+    );
+    let receiver = catch_slot()
+        .lock()
+        .unwrap()
+        .take()
+        .context("catch was not armed")?;
+    Ok(receiver
+        .recv_timeout(Duration::from_secs_f64(seconds + 0.5))
+        .unwrap_or_else(|_| rate(0, Duration::ZERO)))
+}
+fn blast(socket: &UdpSocket, request: &Value) -> Result<Value> {
+    let (bytes, _) = transfer_limits(request)?;
+    let chunk = request["chunk"].as_u64().unwrap_or(1200) as usize;
+    anyhow::ensure!((1..=1400).contains(&chunk), "invalid chunk");
+    socket2::SockRef::from(socket)
+        .set_send_buffer_size(4 * 1024 * 1024)
+        .ok();
+    let destination = address(&request["to"])?;
+    let payload = vec![0u8; chunk];
+    let mut sent = 0u64;
+    let started = Instant::now();
+    while sent < bytes {
+        let length = ((bytes - sent) as usize).min(chunk);
+        loop {
+            match socket.send_to(&payload[..length], destination) {
+                Ok(wrote) => {
+                    sent += wrote as u64;
+                    break;
+                }
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_micros(50));
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+    }
+    Ok(rate(sent, started.elapsed()))
 }
 fn stun_exchange(socket: &UdpSocket, request: &Value) -> Result<Value> {
     let seconds = request["timeout"].as_f64().unwrap_or(0.5);

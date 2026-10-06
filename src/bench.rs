@@ -1005,6 +1005,134 @@ pub fn webrtc(options: &WebrtcOptions) -> Result<Value> {
     }))
 }
 
+pub struct ThroughputOptions {
+    pub bytes: u64,
+    pub chunk: u64,
+    pub timeout_seconds: f64,
+    pub executable: PathBuf,
+}
+impl ThroughputOptions {
+    fn validate(&self) -> Result<()> {
+        anyhow::ensure!(
+            (1..=16 * 1024 * 1024).contains(&self.bytes),
+            "byte count must be between 1 and 16777216"
+        );
+        anyhow::ensure!(
+            (1..=1400).contains(&self.chunk),
+            "chunk must be between 1 and 1400 bytes"
+        );
+        anyhow::ensure!(
+            self.timeout_seconds.is_finite()
+                && self.timeout_seconds > 0.
+                && self.timeout_seconds <= 3600.,
+            "timeout must be finite and between 0 and 3600 seconds (exclusive of 0)"
+        );
+        Ok(())
+    }
+}
+
+pub fn throughput(options: &ThroughputOptions) -> Result<Value> {
+    options.validate()?;
+    let started = Instant::now();
+    let mut lab = Lab::create(Profile::Preserve, Profile::Preserve, RouterInput::Drop)?;
+    let mut observer = Endpoint::udp(
+        &mut lab,
+        "wan",
+        &options.executable,
+        json!([DESTINATIONS[0]]),
+    )?;
+    let mut sender = Endpoint::udp(
+        &mut lab,
+        "a",
+        &options.executable,
+        json!([["0.0.0.0", 10000]]),
+    )?;
+    let mut receiver = Endpoint::udp(
+        &mut lab,
+        "b",
+        &options.executable,
+        json!([["0.0.0.0", 10000]]),
+    )?;
+    sender.send(0, destination(0), "map-a")?;
+    let mapped_sender = observer.receive("map-a", 0.5)?;
+    receiver.send(0, destination(0), "map-b")?;
+    let mapped_receiver = observer.receive("map-b", 0.5)?;
+    let punched = if mapped_sender.is_null() || mapped_receiver.is_null() {
+        false
+    } else {
+        punch_both(
+            &mut sender,
+            &mut receiver,
+            &mapped_receiver["from"],
+            &mapped_sender["from"],
+            options.timeout_seconds.min(2.),
+        )?
+    };
+    observer.process.stop()?;
+    let (sent, received) = if punched {
+        receiver.request(json!({
+            "action": "arm",
+            "socket": 0,
+            "bytes": options.bytes,
+            "timeout": options.timeout_seconds,
+        }))?;
+        let sent = sender.request(json!({
+            "action": "blast",
+            "socket": 0,
+            "to": mapped_receiver["from"],
+            "bytes": options.bytes,
+            "chunk": options.chunk,
+            "timeout": options.timeout_seconds,
+        }))?;
+        let received = receiver.request(json!({
+            "action": "report",
+            "timeout": options.timeout_seconds,
+        }))?;
+        (sent, received)
+    } else {
+        let empty = json!({"bytes": 0, "elapsed_seconds": 0.0, "bytes_per_second": 0.0});
+        (empty.clone(), empty)
+    };
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")?
+        .trim()
+        .to_owned();
+    Ok(json!({
+        "schema_version": 1,
+        "experiment": "throughput",
+        "kernel": kernel,
+        "backend": "linux-nftables",
+        "profiles": {"a": Profile::Preserve, "b": Profile::Preserve},
+        "requested_bytes": options.bytes,
+        "chunk": options.chunk,
+        "punch_bidirectional": punched,
+        "sent_bytes": sent["bytes"],
+        "send_elapsed_seconds": sent["elapsed_seconds"],
+        "send_bytes_per_second": sent["bytes_per_second"],
+        "received_bytes": received["bytes"],
+        "receive_elapsed_seconds": received["elapsed_seconds"],
+        "receive_bytes_per_second": received["bytes_per_second"],
+        "elapsed_seconds": (started.elapsed().as_secs_f64() * 1000.).round() / 1000.,
+    }))
+}
+
+fn punch_both(
+    sender: &mut Endpoint,
+    receiver: &mut Endpoint,
+    to_receiver: &Value,
+    to_sender: &Value,
+    timeout: f64,
+) -> Result<bool> {
+    let started = Instant::now();
+    let mut reached = [false; 2];
+    while started.elapsed().as_secs_f64() < timeout && !reached.iter().all(|done| *done) {
+        sender.send(0, to_receiver.clone(), "punch-a")?;
+        receiver.send(0, to_sender.clone(), "punch-b")?;
+        reached[0] |= !sender.receive("punch-b", 0.1)?.is_null();
+        reached[1] |= !receiver.receive("punch-a", 0.1)?.is_null();
+    }
+    Ok(reached.iter().all(|done| *done))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1114,5 +1242,21 @@ udp      17 29 src=10.1.0.2 dst=198.18.0.1 sport=10000 dport=9000 [UNREPLIED] sr
         let right = json!({"behavior": "external-source"});
         assert_eq!(shared_hairpin_behavior(&left, &left), "no-hairpin");
         assert_eq!(shared_hairpin_behavior(&left, &right), "inconclusive");
+    }
+    #[test]
+    fn invalid_throughput_does_not_create_namespaces() {
+        let mut options = ThroughputOptions {
+            bytes: 0,
+            chunk: 1200,
+            timeout_seconds: 2.,
+            executable: PathBuf::from("natbench"),
+        };
+        assert!(throughput(&options).is_err());
+        options.bytes = 1024;
+        options.chunk = 1401;
+        assert!(throughput(&options).is_err());
+        options.chunk = 1200;
+        options.timeout_seconds = 0.;
+        assert!(throughput(&options).is_err());
     }
 }

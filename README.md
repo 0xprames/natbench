@@ -8,8 +8,8 @@ public mappings, probes inbound filtering separately, attempts simultaneous
 UDP hole punching, and removes discovery and relay processes to check whether
 a direct path actually works without them.
 
-This is an experimental correctness harness, not a throughput benchmark or a
-complete RFC conformance suite. It ships as a Rust binary using Linux network
+This is an experimental correctness harness, not a general throughput benchmark
+or a complete RFC conformance suite. It ships as a Rust binary using Linux network
 namespaces and nftables. The same executable supplies the UDP endpoints and relay.
 No application daemon or container runtime is required.
 
@@ -36,6 +36,7 @@ sudo ./target/release/natbench translate
 sudo ./target/release/natbench stun
 sudo ./target/release/natbench quic
 sudo ./target/release/natbench webrtc
+sudo ./target/release/natbench throughput
 sudo ./target/release/natbench run --role a -- ip route
 ```
 
@@ -216,6 +217,16 @@ exchange a second payload on the same channel. The result records both
 exchanges. This is a connectivity check, not a media or throughput test. The
 DTLS certificate is generated for the lab and is not a trust anchor.
 
+## Throughput
+
+`throughput` times one UDP transfer on the preserve/preserve path. Each client
+binds port 10000. An observer on the WAN records the public mappings, and both
+peers punch those mappings on the same sockets. Client A then sends a fixed
+number of bytes to client B's mapped address. The receiver counts payload bytes
+from the first datagram until the requested total arrives. The result is that
+count, how long it took, and the bytes per second. A shortfall is a measured
+result. The number describes this lab.
+
 ## Bring your own programs
 
 ```rust,no_run
@@ -288,10 +299,11 @@ lifecycle tests, mapping expiry and refresh observations, port-collision
 observations, hairpin observations, WAN loss and delay observations, a nested
 NAT in front of client A, a userspace UDP translator with endpoint-independent
 filtering, STUN Binding discovery on the traversal socket, a QUIC handshake
-on that socket, and a WebRTC data channel on that socket. Both application
-checks still carry data after the relay is gone.
+on that socket, a WebRTC data channel on that socket, and a timed UDP transfer
+on the punched path. Both application checks still carry data after the relay
+is gone.
 
-IPv6, TCP hole punching, and performance measurement are outside the current suite.
+TCP hole punching and IPv6 are the following experiments.
 
 ## Development
 
@@ -305,7 +317,7 @@ sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, userspace translation, STUN discovery, QUIC handshake and relay shutdown, WebRTC data channel and relay shutdown, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, userspace translation, STUN discovery, QUIC handshake and relay shutdown, WebRTC data channel and relay shutdown, a timed UDP transfer, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
 ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.

@@ -117,6 +117,15 @@ enum Action {
         #[arg(value_parser = ["a", "b"])]
         role: String,
     },
+    /// Time one UDP transfer on the punched preserve/preserve path.
+    Throughput {
+        #[arg(long, default_value_t = 1_048_576)]
+        bytes: u64,
+        #[arg(long, default_value_t = 1200)]
+        chunk: u64,
+        #[arg(long, default_value_t = 2.)]
+        timeout: f64,
+    },
     /// Open a WebRTC data channel on the STUN socket and exchange data again after the relay stops.
     Webrtc {
         #[arg(long, default_value_t = 8.)]
@@ -265,6 +274,19 @@ fn execute(action: Action) -> Result<i32> {
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
         Action::WebrtcWorker { role } => natbench::run_webrtc(&role)?,
+        Action::Throughput {
+            bytes,
+            chunk,
+            timeout,
+        } => {
+            let result = bench::throughput(&bench::ThroughputOptions {
+                bytes,
+                chunk,
+                timeout_seconds: timeout,
+                executable: executable()?,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
     }
     Ok(0)
 }
