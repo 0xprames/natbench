@@ -1,2 +1,3 @@
 /target/
 /results*.json
+/examples/udp-echo/udp-echo

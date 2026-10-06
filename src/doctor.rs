@@ -57,7 +57,7 @@ impl Report {
         text
     }
 }
-fn executable(tool: &str) -> Option<PathBuf> {
+pub(crate) fn executable(tool: &str) -> Option<PathBuf> {
     env::split_paths(&env::var_os("PATH").unwrap_or_default())
         .map(|dir| dir.join(tool))
         .find(|path| {

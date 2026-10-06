@@ -1,0 +1,132 @@
+{
+  "schema_version": 2,
+  "cases": [
+    {
+      "name": "independent UDP app crosses NAT and handles service restart",
+      "a": "preserve",
+      "b": "random",
+      "router_input": "drop",
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./udp-echo",
+            "--mode",
+            "server",
+            "--address",
+            "0.0.0.0:9999"
+          ],
+          "timeout_seconds": 5,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "READY"
+          }
+        },
+        {
+          "name": "client-a",
+          "role": "a",
+          "argv": [
+            "./udp-echo",
+            "--message",
+            "first"
+          ],
+          "timeout_seconds": 5
+        },
+        {
+          "name": "client-b",
+          "role": "b",
+          "argv": [
+            "./udp-echo",
+            "--message",
+            "after-restart"
+          ],
+          "timeout_seconds": 5
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "run",
+          "process": "client-a",
+          "stdout_contains": "PASS first"
+        },
+        {
+          "action": "restart",
+          "process": "server"
+        },
+        {
+          "action": "run",
+          "process": "client-b",
+          "stdout_contains": "PASS after-restart"
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "UDP-blocked network produces the application expected failure",
+      "a": "udp-blocked",
+      "b": "random",
+      "router_input": "drop",
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./udp-echo",
+            "--mode",
+            "server",
+            "--address",
+            "0.0.0.0:9999"
+          ],
+          "timeout_seconds": 5,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "READY"
+          }
+        },
+        {
+          "name": "client-a",
+          "role": "a",
+          "argv": [
+            "./udp-echo",
+            "--message",
+            "first"
+          ],
+          "timeout_seconds": 5
+        },
+        {
+          "name": "client-b",
+          "role": "b",
+          "argv": [
+            "./udp-echo",
+            "--message",
+            "after-restart"
+          ],
+          "timeout_seconds": 5
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "run",
+          "process": "client-a",
+          "expect_exit": 1
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    }
+  ]
+}

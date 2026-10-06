@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 //! Network fixtures and measured NAT experiments for Linux.
+mod application;
 pub mod bench;
 pub mod doctor;
 pub mod lab;

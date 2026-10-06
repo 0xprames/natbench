@@ -28,6 +28,16 @@ behavior requires a new input version. Future runners adding a new input version
 must retain the existing version 1 path or explicitly announce its retirement.
 Validation errors are preferable to silently ignoring misspelled instructions.
 
+## Application scenario version 2
+
+[scenario-v2.schema.json](../schemas/scenario-v2.schema.json) adds external processes
+and sequential lifecycle steps. Version 1 built-in scenarios remain accepted by
+`natbench test`. Application inputs use the closed object policy above. The runner
+also validates process identity/reference consistency, lifecycle ordering, working
+directories, IPv4 readiness addresses, NUL-free argv/env and bounded byte patterns.
+See [application scenarios](APPLICATIONS.md) for execution and readiness semantics.
+Input version 2 and suite report version 2 are independent formats.
+
 ## Suite report version 2
 
 Current reports use [suite-report-v2.schema.json](../schemas/suite-report-v2.schema.json).
@@ -104,7 +114,7 @@ command/document type and version; the same number does not identify a shared
 format. Raw measurements describe this topology and time, not guaranteed future
 reachability on another network.
 
-The v0.1.1 release introduces suite report version 2 while continuing to accept
+The v0.1.1 release introduced suite report version 2 while continuing to accept
 scenario version 1. Upgrade wrappers to check `complete` and `interrupted`, retain
 case status handling, and continue treating a nonzero process exit as failure.
 Consumers supporting older archives may keep their explicit version 1 reader.

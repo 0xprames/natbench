@@ -14,7 +14,9 @@ fn namespaces() -> BTreeSet<String> {
     String::from_utf8(output.stdout)
         .unwrap()
         .lines()
-        .map(|l| l.split_whitespace().next().unwrap().to_owned())
+        .filter_map(|line| line.split_whitespace().next())
+        .filter(|name| name.starts_with("nb"))
+        .map(str::to_owned)
         .collect()
 }
 struct ChildGuard(Child);

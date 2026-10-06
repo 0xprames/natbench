@@ -6,7 +6,10 @@ use std::{
     fs::File,
     io::{Read, Write},
     process::{Child, Command, Output, Stdio},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
     time::Duration,
 };
@@ -38,12 +41,55 @@ impl RouterInput {
 
 /// A tracked child. Its owning Lab terminates it when the fixture is dropped.
 #[derive(Clone)]
-pub struct Process(pub(crate) Arc<Mutex<Child>>);
+pub struct Process(pub(crate) Arc<Mutex<Child>>, Option<Arc<AtomicBool>>);
 impl Process {
+    pub(crate) fn status(&self) -> Result<Option<std::process::ExitStatus>> {
+        let mut child = self.0.lock().unwrap();
+        if self
+            .1
+            .as_ref()
+            .is_some_and(|active| active.load(Ordering::Relaxed))
+        {
+            // Keep the leader's PID reserved until its process group is terminated.
+            // SAFETY: siginfo is initialized, waitid receives a PID we own and a valid buffer.
+            let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+            let result = unsafe {
+                libc::waitid(
+                    libc::P_PID,
+                    child.id(),
+                    &mut info,
+                    libc::WEXITED | libc::WNOWAIT | libc::WNOHANG,
+                )
+            };
+            if result < 0 {
+                return Err(std::io::Error::last_os_error().into());
+            }
+            // SAFETY: waitid filled a valid child-status siginfo structure.
+            if unsafe { info.si_pid() } == 0 {
+                return Ok(None);
+            }
+            self.stop_group(child.id())?;
+        }
+        Ok(child.try_wait()?)
+    }
+    fn stop_group(&self, pid: u32) -> Result<()> {
+        if let Some(active) = &self.1 {
+            if active.load(Ordering::Relaxed) {
+                // SAFETY: managed applications have a dedicated group led by this unreaped child.
+                let result = unsafe { libc::kill(-(pid as i32), libc::SIGKILL) };
+                if result < 0 && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH)
+                {
+                    return Err(std::io::Error::last_os_error().into());
+                }
+                active.store(false, Ordering::Relaxed);
+            }
+        }
+        Ok(())
+    }
     pub fn wait(&self) -> Result<std::process::ExitStatus> {
         loop {
             crate::check_cancelled()?;
-            if let Some(status) = self.0.lock().unwrap().try_wait()? {
+            if let Some(status) = self.status()? {
                 return Ok(status);
             }
             thread::sleep(Duration::from_millis(20));
@@ -51,6 +97,7 @@ impl Process {
     }
     pub fn stop(&self) -> Result<()> {
         let mut child = self.0.lock().unwrap();
+        self.stop_group(child.id())?;
         if child.try_wait()?.is_none() {
             child.kill()?;
         }
@@ -197,6 +244,38 @@ impl Lab {
     pub(crate) fn spawn_piped(&mut self, role: &str, args: &[&str]) -> Result<Process> {
         self.spawn_command(role, args, true)
     }
+    pub(crate) fn spawn_application(
+        &mut self,
+        role: &str,
+        argv: &[String],
+        cwd: &std::path::Path,
+        env: &BTreeMap<String, String>,
+        stdout: File,
+        stderr: File,
+    ) -> Result<Process> {
+        crate::check_cancelled()?;
+        let ip = crate::doctor::executable("ip").context("ip executable missing")?;
+        let namespace = self
+            .namespaces
+            .get(role)
+            .context("unknown application role")?;
+        let mut command = Command::new(ip);
+        command.args(["netns", "exec", namespace]).args(argv);
+        command
+            .current_dir(cwd)
+            .envs(env)
+            .stdin(Stdio::null())
+            .stdout(stdout)
+            .stderr(stderr);
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+        let process = Process(
+            Arc::new(Mutex::new(command.spawn().context("launch application")?)),
+            Some(Arc::new(AtomicBool::new(true))),
+        );
+        self.processes.push(process.clone());
+        Ok(process)
+    }
     fn spawn_command(&mut self, role: &str, args: &[&str], piped: bool) -> Result<Process> {
         crate::check_cancelled()?;
         let mut cmd = self.command(role, args)?;
@@ -205,9 +284,10 @@ impl Lab {
                 .stdout(Stdio::piped())
                 .stderr(Stdio::inherit());
         }
-        let process = Process(Arc::new(Mutex::new(
-            cmd.spawn().context("launch namespace command")?,
-        )));
+        let process = Process(
+            Arc::new(Mutex::new(cmd.spawn().context("launch namespace command")?)),
+            None,
+        );
         self.processes.push(process.clone());
         Ok(process)
     }
@@ -461,14 +541,20 @@ fn host(args: &[&str]) -> Result<Output> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn owned_namespaces() -> std::collections::BTreeSet<String> {
+        let output = Command::new("ip").args(["netns", "list"]).output().unwrap();
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .lines()
+            .filter_map(|line| line.split_whitespace().next())
+            .filter(|name| name.starts_with("nb"))
+            .map(str::to_owned)
+            .collect()
+    }
     #[test]
     #[ignore = "requires root and Linux network namespaces"]
     fn partial_setup_failure_removes_created_namespace() {
-        let before = Command::new("ip")
-            .args(["netns", "list"])
-            .output()
-            .unwrap()
-            .stdout;
+        let before = owned_namespaces();
         let name = format!("nb-partial-{}", std::process::id());
         {
             // Reusing the first name forces setup to fail at its second namespace.
@@ -486,11 +572,7 @@ mod tests {
                 .is_err());
             assert_eq!(lab.created.len(), 1);
         }
-        let after = Command::new("ip")
-            .args(["netns", "list"])
-            .output()
-            .unwrap()
-            .stdout;
+        let after = owned_namespaces();
         assert_eq!(before, after);
     }
 }

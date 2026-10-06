@@ -46,6 +46,14 @@ was absent, and 130 means interruption. Fixture errors take precedence over
 inconclusive results, which take precedence over assertion failures. Existing
 measurement commands keep their original exit behavior.
 
+## External application scenarios
+
+Development builds also accept input schema version 2 for ordinary application
+executables: declared readiness, bounded commands, stop/restart steps, assertions,
+logs and timelines. See [application scenarios](docs/APPLICATIONS.md) and the
+[independent Go UDP example](examples/udp-echo/scenario.json). Built-in version 1
+suites retain their existing behavior. This is the first M2 implementation slice.
+
 ## Prerequisite checks
 
 `natbench doctor` checks Linux, effective UID and executable availability without
