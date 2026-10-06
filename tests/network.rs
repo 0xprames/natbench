@@ -33,6 +33,7 @@ fn options() -> Options {
         loss_percent: 0,
         nest_a: false,
         translator: None,
+        stun: false,
         executable: env!("CARGO_BIN_EXE_natbench").into(),
     }
 }
@@ -286,6 +287,36 @@ fn userspace_translator_filters_endpoint_independently() {
     );
     assert_eq!(
         result["observations"]["a"]["filtering"], "endpoint-independent",
+        "{result}"
+    );
+    assert_eq!(
+        result["observations"]["a"]["port_preserved"], true,
+        "{result}"
+    );
+    assert_eq!(
+        result["observations"]["a"]["observed_endpoints"][0][0], "198.18.0.10",
+        "{result}"
+    );
+    assert_eq!(result["traversal"]["bidirectional"], true, "{result}");
+    assert_eq!(before, namespaces());
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn stun_binding_learns_the_preserve_mapping_on_the_punch_socket() {
+    let before = namespaces();
+    let mut options = options();
+    options.stun = true;
+    options.timeout_seconds = 2.;
+    let result = benchmark(&options).unwrap();
+    assert_eq!(result["discovery"], "stun");
+    assert_eq!(result["relay"]["bidirectional_before"], true, "{result}");
+    assert_eq!(
+        result["observations"]["a"]["mapping"], "endpoint-independent",
+        "{result}"
+    );
+    assert_eq!(
+        result["observations"]["a"]["filtering"], "address-and-port-dependent",
         "{result}"
     );
     assert_eq!(
