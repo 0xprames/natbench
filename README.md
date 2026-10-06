@@ -29,6 +29,8 @@ sudo ./target/release/natbench bench --router-input accept
 sudo ./target/release/natbench lifetime
 sudo ./target/release/natbench collision
 sudo ./target/release/natbench hairpin
+sudo ./target/release/natbench impair
+sudo ./target/release/natbench impair --loss-percent 100
 sudo ./target/release/natbench run --role a -- ip route
 ```
 
@@ -138,6 +140,16 @@ dropped (`no-hairpin`), arrives with the sender's private address
 (`external-source`). Linux masquerade on this fixture does not rewrite that
 packet back onto the LAN.
 
+## Loss and delay
+
+`impair` runs one preserve/preserve traversal. Mapping discovery and the TCP
+relay baseline happen first. Then `tc netem` is attached to both router WAN
+interfaces, and the hole punch, the direct-path check, and relay recovery run
+under that impairment. Each direction is delayed once, on the sending router's
+egress, so the round trip is twice `--delay-ms` (default 20, maximum 1000).
+`--loss-percent` defaults to 0 and cannot exceed 100. A total loss still
+reports the NAT class observed before the drop.
+
 ## Bring your own programs
 
 ```rust,no_run
@@ -207,11 +219,11 @@ the upstream GPL-3.0 license.
 Implemented: IPv4 UDP observations and traversal, IPv4 TCP relay controls, three
 kernel profiles, asymmetric matrices, generic process execution, JSON results,
 lifecycle tests, mapping expiry and refresh observations, port-collision
-observations, and hairpin observations.
+observations, hairpin observations, and WAN loss and delay observations.
 
 Useful next steps: independently configurable mapping/filtering via a userspace
-translator; nested NAT; packet loss/delay; real STUN clients; application
-adapters for QUIC and WebRTC.
+translator; nested NAT; real STUN clients; application adapters for QUIC and
+WebRTC.
 IPv6, TCP hole punching, and performance measurement are outside the current suite.
 
 ## Development
@@ -226,7 +238,7 @@ sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, mapping expiry and refresh, port collision, hairpinning, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
 ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.

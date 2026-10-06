@@ -28,6 +28,8 @@ pub struct Options {
     pub b: Profile,
     pub router_input: RouterInput,
     pub timeout_seconds: f64,
+    pub delay_ms: u64,
+    pub loss_percent: u64,
     pub executable: PathBuf,
 }
 impl Options {
@@ -37,6 +39,8 @@ impl Options {
             b: Profile::Preserve,
             router_input: RouterInput::Drop,
             timeout_seconds: 2.,
+            delay_ms: 0,
+            loss_percent: 0,
             executable: std::env::current_exe()?,
         })
     }
@@ -47,6 +51,11 @@ impl Options {
                 && self.timeout_seconds <= 3600.,
             "timeout must be finite and between 0 and 3600 seconds (exclusive of 0)"
         );
+        anyhow::ensure!(
+            self.delay_ms <= 1000,
+            "delay must be at most 1000 milliseconds"
+        );
+        anyhow::ensure!(self.loss_percent <= 100, "loss must be at most 100 percent");
         Ok(())
     }
 }
@@ -233,6 +242,12 @@ pub fn benchmark(options: &Options) -> Result<Value> {
         observations[0]["observed_endpoints"][0].clone(),
         observations[1]["observed_endpoints"][0].clone(),
     ];
+    if options.delay_ms > 0 || options.loss_percent > 0 {
+        // Discovery stays clean. Loss and delay apply to the punch and to recovery.
+        lab.set_wan_impairment(options.delay_ms, options.loss_percent)?;
+    }
+    // Each direction crosses one router's egress qdisc, so the round trip is two delays.
+    let poll = (options.delay_ms as f64 * 4. / 1000.).max(0.1);
     let mut reached = [false; 2];
     let mut attempts = 0;
     let punch_started = Instant::now();
@@ -243,8 +258,8 @@ pub fn benchmark(options: &Options) -> Result<Value> {
             attempts += 1;
             clients[0].send(0, targets[1].clone(), "punch-a")?;
             clients[1].send(0, targets[0].clone(), "punch-b")?;
-            reached[0] |= !clients[0].receive("punch-b", 0.1)?.is_null();
-            reached[1] |= !clients[1].receive("punch-a", 0.1)?.is_null();
+            reached[0] |= !clients[0].receive("punch-b", poll)?.is_null();
+            reached[1] |= !clients[1].receive("punch-a", poll)?.is_null();
         }
     }
     relay.process.stop()?;
@@ -257,8 +272,12 @@ pub fn benchmark(options: &Options) -> Result<Value> {
     if reached.iter().all(|&v| v) {
         clients[0].send(0, targets[1].clone(), "independent-a")?;
         clients[1].send(0, targets[0].clone(), "independent-b")?;
-        survived[0] = !clients[0].receive("independent-b", 0.5)?.is_null();
-        survived[1] = !clients[1].receive("independent-a", 0.5)?.is_null();
+        survived[0] = !clients[0]
+            .receive("independent-b", poll.max(0.5))?
+            .is_null();
+        survived[1] = !clients[1]
+            .receive("independent-a", poll.max(0.5))?
+            .is_null();
     }
     let _restarted_relay = Endpoint::launch(&mut lab, "wan", &options.executable, &["__relay"])?;
     let recovered = relay_exchange(&mut clients, "recovered")?;
@@ -268,6 +287,7 @@ pub fn benchmark(options: &Options) -> Result<Value> {
     Ok(
         json!({"schema_version": 1, "kernel": kernel, "backend": "linux-nftables",
         "profiles": {"a": options.a, "b": options.b}, "router_input": options.router_input,
+        "impairment": {"delay_ms": options.delay_ms, "loss_percent": options.loss_percent},
         "observations": {"a": observations[0], "b": observations[1]},
         "relay": {"bidirectional_before": before, "outage_detected": {"a": outage[0], "b": outage[1]}, "bidirectional_after_restart": recovered},
         "traversal": {"received": {"a": reached[0], "b": reached[1]}, "bidirectional": reached.iter().all(|&v| v),
@@ -285,6 +305,8 @@ pub fn matrix(options: &Options) -> Result<Vec<Value>> {
                 b,
                 router_input: options.router_input,
                 timeout_seconds: options.timeout_seconds,
+                delay_ms: options.delay_ms,
+                loss_percent: options.loss_percent,
                 executable: options.executable.clone(),
             })?);
         }
@@ -849,6 +871,15 @@ mod tests {
             options.timeout_seconds = timeout;
             assert!(benchmark(&options).is_err());
         }
+    }
+    #[test]
+    fn invalid_impairment_does_not_create_namespaces() {
+        let mut options = Options::current_exe().unwrap();
+        options.delay_ms = 1001;
+        assert!(benchmark(&options).is_err());
+        options.delay_ms = 0;
+        options.loss_percent = 101;
+        assert!(benchmark(&options).is_err());
     }
     #[test]
     fn invalid_lifetime_timeouts_do_not_create_namespaces() {
