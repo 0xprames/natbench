@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "natbench"
+version = "0.1.0"
+description = "Measure NAT behavior and UDP traversal in isolated Linux networks"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
+authors = [{name = "0xprames"}]
+
+[project.urls]
+Repository = "https://github.com/0xprames/natbench"
+Issues = "https://github.com/0xprames/natbench/issues"
+
+[project.scripts]
+natbench = "natbench.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["natbench*"]
