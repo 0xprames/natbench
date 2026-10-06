@@ -47,6 +47,15 @@ enum Action {
     Endpoint { binds: String },
     #[command(name = "__relay", hide = true)]
     Relay,
+    /// Measure how long a UDP mapping survives, and which packets refresh it.
+    Lifetime {
+        #[arg(long, value_enum, default_value = "preserve")]
+        profile: Profile,
+        #[arg(long, value_enum, default_value = "drop")]
+        router_input: RouterInput,
+        #[arg(long, default_value_t = 3)]
+        udp_timeout: u64,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -88,6 +97,19 @@ fn execute(action: Action) -> Result<i32> {
         }
         Action::Endpoint { binds } => natbench::run_endpoint(&binds)?,
         Action::Relay => natbench::run_relay()?,
+        Action::Lifetime {
+            profile,
+            router_input,
+            udp_timeout,
+        } => {
+            let result = bench::lifetime(&bench::LifetimeOptions {
+                profile,
+                router_input,
+                udp_timeout_seconds: udp_timeout,
+                executable: executable()?,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
     }
     Ok(0)
 }

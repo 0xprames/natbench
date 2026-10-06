@@ -1,5 +1,5 @@
 use natbench::{
-    bench::{benchmark, matrix, Options},
+    bench::{benchmark, lifetime, matrix, LifetimeOptions, Options},
     lab::{Lab, Profile, RouterInput},
 };
 use serde_json::Value;
@@ -133,5 +133,27 @@ fn real_network_matrix_and_lifecycle() {
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["traversal"]["bidirectional"], false);
     assert_eq!(result["relay"]["bidirectional_after_restart"], true);
+    assert_eq!(before, namespaces());
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn mapping_expires_without_traffic_and_refreshes_from_either_direction() {
+    let before = namespaces();
+    let result = lifetime(&LifetimeOptions {
+        profile: Profile::Preserve,
+        router_input: RouterInput::Drop,
+        udp_timeout_seconds: 3,
+        executable: env!("CARGO_BIN_EXE_natbench").into(),
+    })
+    .unwrap();
+    assert_eq!(result["experiment"], "mapping-lifetime");
+    assert_eq!(result["established"], true, "{result}");
+    assert_eq!(result["idle"]["conntrack_present"], false, "{result}");
+    assert_eq!(result["idle"]["return_traffic"], false, "{result}");
+    for phase in ["outbound_refresh", "inbound_refresh"] {
+        assert_eq!(result[phase]["conntrack_present"], true, "{result}");
+        assert_eq!(result[phase]["return_traffic"], true, "{result}");
+    }
     assert_eq!(before, namespaces());
 }
