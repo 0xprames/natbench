@@ -206,89 +206,119 @@ impl Suite {
         &self,
         source: String,
         mut experiment: impl FnMut(&Case) -> Result<Value>,
-        mut checkpoint: impl FnMut(&Report) -> Result<()>,
+        checkpoint: impl FnMut(&Report) -> Result<()>,
         cancelled: impl Fn() -> bool,
     ) -> Result<Report> {
         self.validate()?;
-        let mut report = Report {
-            schema_version: REPORT_SCHEMA_VERSION,
-            scenario: source,
-            cases: Vec::new(),
-            planned_cases: self.cases.iter().map(|c| c.name.clone()).collect(),
-            active_case: None,
-            complete: false,
-            interrupted: false,
-        };
-        checkpoint(&report)?;
-        for case in &self.cases {
-            if cancelled() {
-                report.interrupted = true;
-                break;
-            }
-            report.active_case = Some(case.name.clone());
-            checkpoint(&report)?;
-            let result = experiment(case);
-            if result.is_err() && cancelled() {
-                report.interrupted = true;
-                break;
-            }
-            let case_report = match result {
-                Err(error) => CaseReport {
-                    name: case.name.clone(),
-                    status: Status::InfrastructureFailed,
-                    messages: vec![format!("{error:#}")],
-                    observation: None,
-                },
-                Ok(observation) => {
-                    let mut messages = Vec::new();
-                    let mut missing = false;
-                    for expectation in &case.expect {
-                        match observation.pointer(&expectation.pointer) {
-                            None => {
-                                missing = true;
-                                messages
-                                    .push(format!("missing observation {}", expectation.pointer));
-                            }
-                            Some(actual) if *actual != expectation.equals => {
-                                messages.push(format!(
-                                    "{}: expected {}, observed {}",
-                                    expectation.pointer, expectation.equals, actual
-                                ))
-                            }
-                            _ => {}
+        execute_plan(
+            source,
+            self.cases.iter().map(|c| c.name.clone()).collect(),
+            |index| {
+                let case = &self.cases[index];
+                let observation = experiment(case)?;
+                let mut messages = Vec::new();
+                let mut missing = false;
+                for expectation in &case.expect {
+                    match observation.pointer(&expectation.pointer) {
+                        None => {
+                            missing = true;
+                            messages.push(format!("missing observation {}", expectation.pointer));
                         }
-                    }
-                    let status = if missing {
-                        Status::Inconclusive
-                    } else if messages.is_empty() {
-                        Status::Passed
-                    } else {
-                        Status::AssertionFailed
-                    };
-                    CaseReport {
-                        name: case.name.clone(),
-                        status,
-                        messages,
-                        observation: Some(observation),
+                        Some(actual) if *actual != expectation.equals => messages.push(format!(
+                            "{}: expected {}, observed {}",
+                            expectation.pointer, expectation.equals, actual
+                        )),
+                        _ => {}
                     }
                 }
-            };
-            report.cases.push(case_report);
-            report.active_case = None;
-            checkpoint(&report)?;
-            if cancelled() {
-                report.interrupted = true;
-                break;
-            }
-        }
-        report.complete = report.cases.len() == report.planned_cases.len();
-        checkpoint(&report)?;
-        Ok(report)
+                let status = if missing {
+                    Status::Inconclusive
+                } else if messages.is_empty() {
+                    Status::Passed
+                } else {
+                    Status::AssertionFailed
+                };
+                Ok(CaseReport {
+                    name: case.name.clone(),
+                    status,
+                    messages,
+                    observation: Some(observation),
+                })
+            },
+            checkpoint,
+            cancelled,
+        )
     }
 }
+fn execute_plan(
+    source: String,
+    names: Vec<String>,
+    mut experiment: impl FnMut(usize) -> Result<CaseReport>,
+    mut checkpoint: impl FnMut(&Report) -> Result<()>,
+    cancelled: impl Fn() -> bool,
+) -> Result<Report> {
+    let mut report = Report {
+        schema_version: REPORT_SCHEMA_VERSION,
+        scenario: source,
+        cases: Vec::new(),
+        planned_cases: names,
+        active_case: None,
+        complete: false,
+        interrupted: false,
+    };
+    checkpoint(&report)?;
+    for index in 0..report.planned_cases.len() {
+        if cancelled() {
+            report.interrupted = true;
+            break;
+        }
+        let name = report.planned_cases[index].clone();
+        report.active_case = Some(name.clone());
+        checkpoint(&report)?;
+        let result = experiment(index);
+        if result.is_err() && cancelled() {
+            report.interrupted = true;
+            break;
+        }
+        report.cases.push(result.unwrap_or_else(|error| CaseReport {
+            name,
+            status: Status::InfrastructureFailed,
+            messages: vec![format!("{error:#}")],
+            observation: None,
+        }));
+        report.active_case = None;
+        checkpoint(&report)?;
+        if cancelled() {
+            report.interrupted = true;
+            break;
+        }
+    }
+    report.complete = report.cases.len() == report.planned_cases.len();
+    checkpoint(&report)?;
+    Ok(report)
+}
+pub(crate) fn run_application_cases(
+    source: String,
+    names: Vec<String>,
+    experiment: impl FnMut(usize) -> Result<CaseReport>,
+    artifacts: &Path,
+) -> Result<Report> {
+    execute_plan(
+        source,
+        names,
+        experiment,
+        |report| save_checkpoint(artifacts, report),
+        || crate::cancellation().load(Ordering::Relaxed),
+    )
+}
+
 pub fn run(path: &Path, artifacts: &Path) -> Result<Report> {
-    let suite: Suite = serde_json::from_slice(&fs::read(path).context("read scenario")?)
-        .context("parse scenario")?;
+    let input = fs::read(path).context("read scenario")?;
+    let header: Value = serde_json::from_slice(&input).context("parse scenario")?;
+    if header["schema_version"] == 2 {
+        return crate::application::run(path, artifacts, &input);
+    }
+    let suite: Suite = serde_json::from_slice(&input).context("parse scenario")?;
     suite.validate()?;
     // Never silently replace the evidence from an earlier run.
     fs::create_dir(artifacts)

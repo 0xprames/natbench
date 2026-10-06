@@ -21,6 +21,8 @@ fn namespaces() -> BTreeSet<String> {
     String::from_utf8(output.stdout)
         .unwrap()
         .lines()
+        .filter_map(|line| line.split_whitespace().next())
+        .filter(|name| name.starts_with("nb"))
         .map(str::to_owned)
         .collect()
 }

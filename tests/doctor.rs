@@ -1,6 +1,17 @@
 use serde_json::Value;
 use std::process::Command;
 
+fn owned_namespaces() -> std::collections::BTreeSet<String> {
+    let output = Command::new("ip").args(["netns", "list"]).output().unwrap();
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .filter_map(|line| line.split_whitespace().next())
+        .filter(|name| name.starts_with("nb"))
+        .map(str::to_owned)
+        .collect()
+}
+
 #[test]
 fn missing_tools_explain_remedies_without_creating_a_fixture() {
     let output = Command::new(env!("CARGO_BIN_EXE_natbench"))
@@ -22,11 +33,7 @@ fn missing_tools_explain_remedies_without_creating_a_fixture() {
 #[test]
 #[ignore = "requires root, Linux namespaces, nftables, conntrack and tc"]
 fn active_probe_checks_features_and_cleans_up() {
-    let before = Command::new("ip")
-        .args(["netns", "list"])
-        .output()
-        .unwrap()
-        .stdout;
+    let before = owned_namespaces();
     let output = Command::new(env!("CARGO_BIN_EXE_natbench"))
         .args(["doctor", "--probe", "--json"])
         .output()
@@ -48,11 +55,7 @@ fn active_probe_checks_features_and_cleans_up() {
             "{report}"
         );
     }
-    let after = Command::new("ip")
-        .args(["netns", "list"])
-        .output()
-        .unwrap()
-        .stdout;
+    let after = owned_namespaces();
     assert_eq!(before, after);
     // Probing an existing namespace from the parent must fail before binding NFQUEUE.
     let mut lab = natbench::lab::Lab::create(
@@ -82,14 +85,7 @@ fn active_probe_checks_features_and_cleans_up() {
         .unwrap()
         .success());
     drop(lab);
-    assert_eq!(
-        before,
-        Command::new("ip")
-            .args(["netns", "list"])
-            .output()
-            .unwrap()
-            .stdout
-    );
+    assert_eq!(before, owned_namespaces());
     let read_only = Command::new(env!("CARGO_BIN_EXE_natbench"))
         .args(["doctor", "--json"])
         .output()

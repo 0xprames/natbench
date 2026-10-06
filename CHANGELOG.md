@@ -1,9 +1,16 @@
 # Changelog
 
+## 0.2.0 development
+
+- Application input schema 2 with ordinary executable argv, cwd/env, declared
+  readiness, deadlines and sequential lifecycle steps.
+- Per-launch stdout/stderr and JSONL lifecycle timelines, preserved on failure.
+- Dedicated process groups terminate service children during stop/restart.
+- Independent Go UDP scenario for NAT, restart and an expected blocked-UDP result.
+
 ## 0.1.1
 
-Prepared M1 release; publication follows merge, clean CI, and a version-matching
-tag whose commit is reachable from `main`.
+Published M1 release with tested x86-64 and ARM64 GNU/Linux archives and checksums.
 
 - Declarative built-in suites with explicit expectations, distinct CI verdicts,
   JSON/JUnit evidence, and artifact overwrite protection.

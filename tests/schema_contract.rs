@@ -38,3 +38,12 @@ fn output_allows_additive_metadata_but_input_rejects_unknown_fields() {
         .validate(&checkpoint)
         .unwrap();
 }
+
+#[test]
+fn application_example_matches_its_declared_schema() {
+    let instance: Value =
+        serde_json::from_str(include_str!("../examples/udp-echo/scenario.json")).unwrap();
+    validator(include_str!("../schemas/scenario-v2.schema.json"))
+        .validate(&instance)
+        .unwrap();
+}

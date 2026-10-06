@@ -32,6 +32,8 @@ enum Action {
     },
     #[command(name = "__nfqueue-probe", hide = true)]
     NfqueueProbe { namespace: String },
+    #[command(name = "__tcp-ready", hide = true)]
+    TcpReady { address: std::net::SocketAddr },
     /// Execute a declarative built-in suite with CI assertions and JSON/JUnit artifacts.
     Test {
         scenario: PathBuf,
@@ -174,6 +176,9 @@ fn execute(action: Action) -> Result<i32> {
                 print!("{}", report.summary());
             }
             return Ok(report.exit_code());
+        }
+        Action::TcpReady { address } => {
+            std::net::TcpStream::connect_timeout(&address, std::time::Duration::from_millis(100))?;
         }
         Action::NfqueueProbe { namespace } => natbench::probe_nfqueue(&namespace)?,
         Action::Test {
@@ -363,6 +368,7 @@ fn main() {
         cli.command,
         Action::Endpoint { .. }
             | Action::NfqueueProbe { .. }
+            | Action::TcpReady { .. }
             | Action::StunServer { .. }
             | Action::Relay
             | Action::Nat { .. }
