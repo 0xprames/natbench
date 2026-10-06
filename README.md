@@ -73,7 +73,8 @@ extracting it. Run the extracted binary's `doctor --probe` and included scenario
 Checksums check integrity; they do not independently authenticate a download.
 
 Branch/PR builds retain tested archives as workflow artifacts. A version-matching
-`vX.Y.Z` tag publishes archives only after both architectures pass tests and
+`vX.Y.Z` tag on a commit reachable from `main` publishes archives only after
+both architectures pass tests and
 extracted-binary smoke checks; prerelease tags publish prerelease entries. No tag
 or release is created by a branch build. First stable distribution waits for the
 M1 gate in the roadmap.
