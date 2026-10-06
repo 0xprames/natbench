@@ -35,6 +35,7 @@ sudo ./target/release/natbench nested
 sudo ./target/release/natbench translate
 sudo ./target/release/natbench stun
 sudo ./target/release/natbench quic
+sudo ./target/release/natbench webrtc
 sudo ./target/release/natbench run --role a -- ip route
 ```
 
@@ -202,6 +203,19 @@ connection. The result records both exchanges. This is a connectivity check,
 not a throughput measurement. The server certificate is generated for the lab
 and is not a trust anchor.
 
+## WebRTC
+
+`webrtc` opens a data channel between the same preserve/preserve peers. Each
+binds UDP port 10000, learns its public address with a STUN Binding request on
+that socket, and publishes the mapped address through the TCP relay. Both send
+a datagram at the peer's mapped address so the address-and-port-dependent
+filter will admit the handshake. They exchange ICE credentials and the DTLS
+fingerprint over the relay, then complete ICE, DTLS, and SCTP on that socket.
+The data channel carries one payload. The controller stops the relay, and they
+exchange a second payload on the same channel. The result records both
+exchanges. This is a connectivity check, not a media or throughput test. The
+DTLS certificate is generated for the lab and is not a trust anchor.
+
 ## Bring your own programs
 
 ```rust,no_run
@@ -273,10 +287,10 @@ kernel profiles, asymmetric matrices, generic process execution, JSON results,
 lifecycle tests, mapping expiry and refresh observations, port-collision
 observations, hairpin observations, WAN loss and delay observations, a nested
 NAT in front of client A, a userspace UDP translator with endpoint-independent
-filtering, STUN Binding discovery on the traversal socket, and a QUIC
-handshake on that socket that still carries data after the relay is gone.
+filtering, STUN Binding discovery on the traversal socket, a QUIC handshake
+on that socket, and a WebRTC data channel on that socket. Both application
+checks still carry data after the relay is gone.
 
-Useful next steps: an application adapter for WebRTC.
 IPv6, TCP hole punching, and performance measurement are outside the current suite.
 
 ## Development
@@ -291,7 +305,7 @@ sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, userspace translation, STUN discovery, QUIC handshake and relay shutdown, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, userspace translation, STUN discovery, QUIC handshake and relay shutdown, WebRTC data channel and relay shutdown, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
 ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.

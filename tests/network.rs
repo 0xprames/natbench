@@ -1,7 +1,7 @@
 use natbench::{
     bench::{
-        benchmark, collision, hairpin, lifetime, matrix, quic, CollisionOptions, HairpinOptions,
-        LifetimeOptions, Options, QuicOptions,
+        benchmark, collision, hairpin, lifetime, matrix, quic, webrtc, CollisionOptions,
+        HairpinOptions, LifetimeOptions, Options, QuicOptions, WebrtcOptions,
     },
     lab::{Lab, Profile, RouterInput},
 };
@@ -341,6 +341,25 @@ fn quic_handshake_on_the_stun_socket_survives_relay_shutdown() {
     })
     .unwrap();
     assert_eq!(result["experiment"], "quic");
+    assert_eq!(result["discovery"], "stun");
+    assert_eq!(result["mapped"]["a"][0], "198.18.0.10", "{result}");
+    assert_eq!(result["mapped"]["b"][0], "198.18.0.20", "{result}");
+    assert_eq!(result["data_before_relay_shutdown"], true, "{result}");
+    assert_eq!(result["relay_shutdown"], true, "{result}");
+    assert_eq!(result["data_after_relay_shutdown"], true, "{result}");
+    assert_eq!(before, namespaces());
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn webrtc_data_channel_on_the_stun_socket_survives_relay_shutdown() {
+    let before = namespaces();
+    let result = webrtc(&WebrtcOptions {
+        timeout_seconds: 8.,
+        executable: env!("CARGO_BIN_EXE_natbench").into(),
+    })
+    .unwrap();
+    assert_eq!(result["experiment"], "webrtc");
     assert_eq!(result["discovery"], "stun");
     assert_eq!(result["mapped"]["a"][0], "198.18.0.10", "{result}");
     assert_eq!(result["mapped"]["b"][0], "198.18.0.20", "{result}");

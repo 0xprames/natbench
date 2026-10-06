@@ -957,6 +957,54 @@ pub fn quic(options: &QuicOptions) -> Result<Value> {
     }))
 }
 
+pub struct WebrtcOptions {
+    pub timeout_seconds: f64,
+    pub executable: PathBuf,
+}
+
+pub fn webrtc(options: &WebrtcOptions) -> Result<Value> {
+    anyhow::ensure!(
+        options.timeout_seconds.is_finite() && options.timeout_seconds > 0.,
+        "invalid timeout"
+    );
+    let started = Instant::now();
+    let mut lab = Lab::create(Profile::Preserve, Profile::Preserve, RouterInput::Drop)?;
+    let binds = json!(DESTINATIONS).to_string();
+    let _stun = Endpoint::launch(&mut lab, "wan", &options.executable, &["__stun", &binds])?;
+    let relay = Endpoint::launch(&mut lab, "wan", &options.executable, &["__relay"])?;
+    let mut answerer = Endpoint::launch(&mut lab, "b", &options.executable, &["__webrtc", "b"])?;
+    let mut offerer = Endpoint::launch(&mut lab, "a", &options.executable, &["__webrtc", "a"])?;
+    let timeout = Duration::from_secs_f64(options.timeout_seconds);
+    let before_answerer = answerer.read(timeout)?;
+    let before_offerer = offerer.read(timeout)?;
+    relay.process.stop()?;
+    answerer.write(json!({"action": "again"}))?;
+    offerer.write(json!({"action": "again"}))?;
+    let after_answerer = answerer.read(timeout)?;
+    let after_offerer = offerer.read(timeout)?;
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")?
+        .trim()
+        .to_owned();
+    Ok(json!({
+        "schema_version": 1,
+        "experiment": "webrtc",
+        "kernel": kernel,
+        "backend": "linux-nftables",
+        "profiles": {"a": Profile::Preserve, "b": Profile::Preserve},
+        "discovery": "stun",
+        "mapped": {
+            "a": offerer.ready["mapped"].clone(),
+            "b": answerer.ready["mapped"].clone(),
+        },
+        "data_before_relay_shutdown": before_offerer["data_before"] == true
+            && before_answerer["data_before"] == true,
+        "relay_shutdown": true,
+        "data_after_relay_shutdown": after_offerer["data_after"] == true
+            && after_answerer["data_after"] == true,
+        "elapsed_seconds": (started.elapsed().as_secs_f64() * 1000.).round() / 1000.,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

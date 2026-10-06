@@ -117,6 +117,16 @@ enum Action {
         #[arg(value_parser = ["a", "b"])]
         role: String,
     },
+    /// Open a WebRTC data channel on the STUN socket and exchange data again after the relay stops.
+    Webrtc {
+        #[arg(long, default_value_t = 8.)]
+        timeout: f64,
+    },
+    #[command(name = "__webrtc", hide = true)]
+    WebrtcWorker {
+        #[arg(value_parser = ["a", "b"])]
+        role: String,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -247,6 +257,14 @@ fn execute(action: Action) -> Result<i32> {
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
         Action::QuicWorker { role } => natbench::run_quic(&role)?,
+        Action::Webrtc { timeout } => {
+            let result = bench::webrtc(&bench::WebrtcOptions {
+                timeout_seconds: timeout,
+                executable: executable()?,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::WebrtcWorker { role } => natbench::run_webrtc(&role)?,
     }
     Ok(0)
 }
@@ -263,6 +281,7 @@ fn main() {
             | Action::Relay
             | Action::Nat { .. }
             | Action::QuicWorker { .. }
+            | Action::WebrtcWorker { .. }
     ) {
         for signal in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {
             if let Err(error) =
