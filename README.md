@@ -15,12 +15,12 @@ No application daemon or container runtime is required.
 
 ## Quick start
 
-Requirements: Linux, root, iproute2, and nftables. Build with a current stable
+Requirements: Linux, root, iproute2, nftables, and conntrack. Build with a current stable
 Rust toolchain; the resulting binary has no Python or Rust runtime dependency.
 On Debian/Ubuntu, from the repository root:
 
 ```sh
-sudo apt-get install iproute2 nftables
+sudo apt-get install iproute2 nftables conntrack
 cargo build --release --locked
 sudo ./target/release/natbench bench
 sudo ./target/release/natbench bench --a preserve --b random
@@ -100,9 +100,11 @@ both UDP conntrack timers on router A to the same value (`--udp-timeout`, defaul
 3 seconds, allowed range 2–60). Linux uses one timer before a reply is seen and
 another after; equal values make a single idle gap apply to either timer.
 
-On one mapping, the run then checks three patterns. Conntrack is read
-in the router namespace, because a port-preserving NAT can recreate the same
-public endpoint and look unchanged from the outside.
+On one mapping, the run then checks three patterns. The table is read with
+`conntrack -L` in the router namespace when that program is installed, and from
+`/proc/net/nf_conntrack` otherwise. Some kernels omit that proc file inside a
+namespace. A port-preserving NAT can recreate the same public endpoint, so the
+table is what shows whether the entry survived.
 
 1. No further packets. After the timeout, the entry should be gone, and an inbound
    probe to the old public endpoint should not arrive.

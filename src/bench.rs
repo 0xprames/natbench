@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use std::{
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
-    process::ChildStdin,
+    process::{ChildStdin, Command, Stdio},
     sync::mpsc::{self, Receiver, RecvTimeoutError},
     thread,
     time::{Duration, Instant},
@@ -323,9 +323,55 @@ fn set_udp_timeout(lab: &Lab, key: &str, seconds: u64) -> Result<()> {
     Ok(())
 }
 
-fn conntrack_dump(lab: &Lab) -> Result<String> {
-    let output = lab.run("ra", &["cat", "/proc/net/nf_conntrack"])?;
+fn conntrack_tool_available() -> bool {
+    Command::new("conntrack")
+        .arg("-V")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
+fn conntrack_tool_dump(ns: &str) -> Result<String> {
+    check_cancelled()?;
+    let output = Command::new("ip")
+        .args([
+            "netns",
+            "exec",
+            ns,
+            "conntrack",
+            "-L",
+            "-f",
+            "ipv4",
+            "-p",
+            "udp",
+        ])
+        .output()
+        .context("run conntrack")?;
+    let stderr = String::from_utf8(output.stderr)?;
+    anyhow::ensure!(output.status.success(), "conntrack -L: {}", stderr.trim());
     Ok(String::from_utf8(output.stdout)?)
+}
+
+fn conntrack_dump(lab: &Lab) -> Result<String> {
+    // Ubuntu runners omit /proc/net/nf_conntrack inside a namespace. The
+    // conntrack tool reads the same table over netlink.
+    if conntrack_tool_available() {
+        let ns = lab
+            .namespaces
+            .get("ra")
+            .context("missing router namespace")?;
+        return conntrack_tool_dump(ns);
+    }
+    match lab.run("ra", &["cat", "/proc/net/nf_conntrack"]) {
+        Ok(output) => Ok(String::from_utf8(output.stdout)?),
+        Err(error) if error.to_string().contains("No such file or directory") => {
+            bail!(
+                "conntrack table is not available at /proc/net/nf_conntrack; install the conntrack package"
+            )
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// The first `src=` group is the LAN tuple. The reply tuple repeats those ports
@@ -360,11 +406,18 @@ fn original_udp_tuple(line: &str) -> Option<(&str, u16, &str, u16)> {
     Some((src?, sport?, dst?, dport?))
 }
 
+fn ipv4_udp_line(line: &str) -> bool {
+    let mut fields = line.split_whitespace();
+    match fields.next() {
+        Some("udp") => true,
+        Some("ipv4") => fields.any(|field| field == "udp"),
+        _ => false,
+    }
+}
+
 fn udp_flow_present(dump: &str, src: &str, sport: u16, dst: &str, dport: u16) -> bool {
     dump.lines().any(|line| {
-        line.split_whitespace().next() == Some("ipv4")
-            && line.split_whitespace().any(|field| field == "udp")
-            && original_udp_tuple(line) == Some((src, sport, dst, dport))
+        ipv4_udp_line(line) && original_udp_tuple(line) == Some((src, sport, dst, dport))
     })
 }
 
@@ -563,5 +616,22 @@ ipv4     2 udp      17 2 src=10.1.0.2 dst=198.18.0.1 sport=100000 dport=90001 sr
             10000
         ));
         assert!(!udp_flow_present("", CLIENT_A, 10000, "198.18.0.1", 9000));
+        let listed = "\
+udp      17 29 src=10.1.0.2 dst=198.18.0.1 sport=10000 dport=9000 [UNREPLIED] src=198.18.0.1 dst=198.18.0.10 sport=9000 dport=10000 mark=0 use=1
+";
+        assert!(udp_flow_present(
+            listed,
+            CLIENT_A,
+            10000,
+            "198.18.0.1",
+            9000
+        ));
+        assert!(!udp_flow_present(
+            listed,
+            "198.18.0.1",
+            9000,
+            "198.18.0.10",
+            10000
+        ));
     }
 }
