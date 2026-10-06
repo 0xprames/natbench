@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/0xprames/natbench/main/schemas/suite-report-v1.schema.json",
+  "type": "object",
+  "$defs": {
+    "case_report": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "messages",
+        "observation"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "assertion_failed",
+            "inconclusive",
+            "infrastructure_failed"
+          ]
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "observation": {}
+      }
+    }
+  },
+  "title": "natbench legacy completed suite report version 1",
+  "required": [
+    "schema_version",
+    "scenario",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "scenario": {
+      "type": "string"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/case_report"
+      }
+    }
+  }
+}

@@ -30,8 +30,15 @@ The suite keeps the observations and records a separate verdict for every case.
 
 The artifact directory must be new and its parent must exist. It contains the
 input scenario, `report.json`, and `junit.xml`. Ordinary fixture failures are
-reported per case and do not prevent later cases from running. Interrupted runs
-may leave only the copied scenario; checkpointed reports are planned.
+reported per case and do not prevent later cases from running. Reports are
+checkpointed before and after each case. SIGINT/SIGTERM keep completed observations,
+record an interrupted active case, and mark unexecuted cases in JUnit. Each file
+is replaced atomically; JSON is authoritative if a crash leaves JUnit behind.
+
+Suite reports now use schema version 2 so partial evidence cannot be interpreted
+using the earlier completed-only format. Inputs remain at version 1. See
+[schema compatibility and migration](docs/SCHEMAS.md) and the definitions in
+[schemas](schemas/) before integrating an output reader.
 
 Exit status: 0 means all expectations passed, 1 means an assertion failed, 2 means
 invalid input, artifact I/O or a fixture failure, 3 means an expected observation
