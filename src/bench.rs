@@ -20,6 +20,7 @@ const DESTINATIONS: [(&str, u16); 3] = [
 ];
 const CLIENT_A: &str = "10.1.0.2";
 const CLIENT_A2: &str = "10.3.0.2";
+const CLIENT_SAME_LAN: &str = "10.1.0.3";
 
 /// The helper executable must be a natbench binary (normally current_exe()).
 pub struct Options {
@@ -707,6 +708,137 @@ pub fn collision(options: &CollisionOptions) -> Result<Value> {
     }))
 }
 
+/// Two clients on one LAN, each sending to the other's public mapping.
+pub struct HairpinOptions {
+    pub profile: Profile,
+    pub router_input: RouterInput,
+    pub executable: PathBuf,
+}
+
+fn shared_hairpin_behavior(left: &Value, right: &Value) -> &'static str {
+    let left = left["behavior"].as_str();
+    let right = right["behavior"].as_str();
+    if left != right {
+        return "inconclusive";
+    }
+    match left {
+        Some("no-hairpin") => "no-hairpin",
+        Some("internal-source") => "internal-source",
+        Some("external-source") => "external-source",
+        _ => "inconclusive",
+    }
+}
+fn hairpin_behavior(
+    source_ip: Option<&str>,
+    sender_lan: &str,
+    sender_public: Option<&str>,
+) -> &'static str {
+    match source_ip {
+        None => "no-hairpin",
+        Some(ip) if ip == sender_lan => "internal-source",
+        Some(ip) if sender_public == Some(ip) => "external-source",
+        Some(_) => "inconclusive",
+    }
+}
+
+fn hairpin_direction(
+    sender: &mut Endpoint,
+    receiver: &mut Endpoint,
+    target: &Value,
+    token: &str,
+    sender_lan: &str,
+    sender_public: Option<&str>,
+) -> Result<Value> {
+    sender.send(0, target.clone(), token)?;
+    let packet = receiver.receive(token, 0.5)?;
+    let source = packet.get("from").cloned().unwrap_or(Value::Null);
+    let source_ip = source.get(0).and_then(Value::as_str);
+    Ok(json!({
+        "target": target,
+        "received": !packet.is_null(),
+        "source": source,
+        "behavior": hairpin_behavior(source_ip, sender_lan, sender_public),
+    }))
+}
+
+pub fn hairpin(options: &HairpinOptions) -> Result<Value> {
+    let started = Instant::now();
+    let mut lab = Lab::create(options.profile, options.profile, options.router_input)?;
+    lab.add_same_lan_client()?;
+    let mut observer = Endpoint::udp(
+        &mut lab,
+        "wan",
+        &options.executable,
+        json!([DESTINATIONS[0]]),
+    )?;
+    let mut client = Endpoint::udp(
+        &mut lab,
+        "a",
+        &options.executable,
+        json!([["0.0.0.0", 10000]]),
+    )?;
+    let mut peer = Endpoint::udp(
+        &mut lab,
+        "a2",
+        &options.executable,
+        json!([["0.0.0.0", 10000]]),
+    )?;
+    client.send(0, destination(0), "map-a")?;
+    let mapped_a = observer.receive("map-a", 0.5)?;
+    let (mapped_a, mapped_peer, a_to_peer, peer_to_a, behavior) = if mapped_a.is_null() {
+        (
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            Value::Null,
+            "unobserved",
+        )
+    } else {
+        peer.send(0, destination(0), "map-peer")?;
+        let mapped_peer = observer.receive("map-peer", 0.5)?;
+        anyhow::ensure!(!mapped_peer.is_null(), "peer mapping was not observed");
+        let public_a = mapped_a["from"][0].as_str().map(str::to_owned);
+        let public_peer = mapped_peer["from"][0].as_str().map(str::to_owned);
+        let target_a = mapped_a["from"].clone();
+        let target_peer = mapped_peer["from"].clone();
+        let a_to_peer = hairpin_direction(
+            &mut client,
+            &mut peer,
+            &target_peer,
+            "hairpin-a",
+            CLIENT_A,
+            public_a.as_deref(),
+        )?;
+        let peer_to_a = hairpin_direction(
+            &mut peer,
+            &mut client,
+            &target_a,
+            "hairpin-peer",
+            CLIENT_SAME_LAN,
+            public_peer.as_deref(),
+        )?;
+        let behavior = shared_hairpin_behavior(&a_to_peer, &peer_to_a);
+        (target_a, target_peer, a_to_peer, peer_to_a, behavior)
+    };
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")?
+        .trim()
+        .to_owned();
+    Ok(json!({
+        "schema_version": 1,
+        "experiment": "hairpin",
+        "kernel": kernel,
+        "backend": "linux-nftables",
+        "profile": options.profile,
+        "router_input": options.router_input,
+        "established": !mapped_a.is_null(),
+        "behavior": behavior,
+        "mappings": {"a": mapped_a, "peer": mapped_peer},
+        "a_to_peer": a_to_peer,
+        "peer_to_a": peer_to_a,
+        "elapsed_seconds": (started.elapsed().as_secs_f64() * 1000.).round() / 1000.,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -788,5 +920,24 @@ udp      17 29 src=10.1.0.2 dst=198.18.0.1 sport=10000 dport=9000 [UNREPLIED] sr
             collision_behavior(true, true, Some(10000), Some(10000)),
             "inconclusive"
         );
+    }
+    #[test]
+    fn hairpin_classes_cover_the_three_rfc_behaviors() {
+        assert_eq!(
+            hairpin_behavior(None, CLIENT_A, Some("198.18.0.10")),
+            "no-hairpin"
+        );
+        assert_eq!(
+            hairpin_behavior(Some(CLIENT_SAME_LAN), CLIENT_SAME_LAN, Some("198.18.0.10")),
+            "internal-source"
+        );
+        assert_eq!(
+            hairpin_behavior(Some("198.18.0.10"), CLIENT_SAME_LAN, Some("198.18.0.10")),
+            "external-source"
+        );
+        let left = json!({"behavior": "no-hairpin"});
+        let right = json!({"behavior": "external-source"});
+        assert_eq!(shared_hairpin_behavior(&left, &left), "no-hairpin");
+        assert_eq!(shared_hairpin_behavior(&left, &right), "inconclusive");
     }
 }
