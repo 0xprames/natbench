@@ -427,3 +427,71 @@ fn tcp_simultaneous_open_between_preserve_peers() {
     assert_eq!(result["data_after_relay_shutdown"], true, "{result}");
     assert_eq!(before, namespaces());
 }
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn declarative_suites_preserve_evidence_and_distinguish_verdicts() {
+    use std::fs;
+    let before = namespaces();
+    let root = std::env::temp_dir().join(format!("natbench-scenarios-{}", std::process::id()));
+    fs::create_dir(&root).unwrap();
+    let source = root.join("suite.json");
+    let mut suite: Value =
+        serde_json::from_str(include_str!("../scenarios/connectivity.json")).unwrap();
+    let exe = env!("CARGO_BIN_EXE_natbench");
+    let invoke = |artifacts: &std::path::Path, no_tools: bool| {
+        let mut command = Command::new(exe);
+        command
+            .arg("test")
+            .arg(&source)
+            .arg("--artifacts")
+            .arg(artifacts);
+        if no_tools {
+            command.env("PATH", "/nonexistent-natbench-tools");
+        }
+        command.output().unwrap()
+    };
+    fs::write(&source, serde_json::to_vec(&suite).unwrap()).unwrap();
+    let artifacts = root.join("passed");
+    let output = invoke(&artifacts, false);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Value =
+        serde_json::from_slice(&fs::read(artifacts.join("report.json")).unwrap()).unwrap();
+    assert_eq!(report["cases"][0]["status"], "passed");
+    assert!(fs::read_to_string(artifacts.join("junit.xml"))
+        .unwrap()
+        .contains("failures=\"0\""));
+    let saved = fs::read(artifacts.join("report.json")).unwrap();
+    assert_eq!(invoke(&artifacts, false).status.code(), Some(2));
+    assert_eq!(fs::read(artifacts.join("report.json")).unwrap(), saved);
+
+    suite["cases"].as_array_mut().unwrap().truncate(1);
+    suite["cases"][0]["expect"][0]["equals"] = serde_json::json!(false);
+    fs::write(&source, serde_json::to_vec(&suite).unwrap()).unwrap();
+    assert_eq!(
+        invoke(&root.join("assertion"), false).status.code(),
+        Some(1)
+    );
+    suite["cases"][0]["expect"][0]["pointer"] = serde_json::json!("/missing-observation");
+    fs::write(&source, serde_json::to_vec(&suite).unwrap()).unwrap();
+    assert_eq!(
+        invoke(&root.join("inconclusive"), false).status.code(),
+        Some(3)
+    );
+    assert_eq!(
+        invoke(&root.join("infrastructure"), true).status.code(),
+        Some(2)
+    );
+    let report: Value =
+        serde_json::from_slice(&fs::read(root.join("infrastructure/report.json")).unwrap())
+            .unwrap();
+    assert_eq!(report["cases"][0]["status"], "infrastructure_failed");
+    assert!(report["cases"][0]["observation"].is_null());
+    fs::remove_dir_all(root).unwrap();
+    assert_eq!(before, namespaces());
+}

@@ -17,7 +17,11 @@ jobs:
       - run: cargo test --locked
       - run: sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" cargo test --locked -- --include-ignored --test-threads=1
       - run: sudo ./target/debug/natbench matrix > results.json
+      - run: sudo ./target/debug/natbench test scenarios/connectivity.json --artifacts scenario-artifacts
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: natbench-results
-          path: results.json
+          path: |
+            results.json
+            scenario-artifacts/

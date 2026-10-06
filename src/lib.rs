@@ -4,6 +4,7 @@
 pub mod bench;
 pub mod lab;
 mod quic;
+pub mod scenario;
 mod stun;
 mod tcp;
 mod translate;

@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use clap::ValueEnum;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     fs::File,
@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 pub enum Profile {
     Preserve,
@@ -21,7 +21,7 @@ pub enum Profile {
 impl Profile {
     pub const ALL: [Self; 3] = [Self::Preserve, Self::Random, Self::UdpBlocked];
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 pub enum RouterInput {
     Drop,

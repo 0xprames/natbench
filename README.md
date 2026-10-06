@@ -13,6 +13,32 @@ or a complete RFC conformance suite. It ships as a Rust binary using Linux netwo
 namespaces and nftables. The same executable supplies the UDP endpoints and relay.
 No application daemon or container runtime is required.
 
+The next releases focus on testing real applications and producing useful CI
+failure evidence. See the [milestone release and launch plan](docs/ROADMAP.md)
+for dates, scope and release gates.
+
+## Declarative CI suites
+
+```sh
+sudo ./target/release/natbench test scenarios/connectivity.json --artifacts ./run-001
+```
+
+This first scenario slice runs built-in `bench` cases; arbitrary application
+commands are the next milestone. Each case declares both router profiles, an
+input policy, a timeout, and JSON Pointer equality assertions against observations.
+The suite keeps the observations and records a separate verdict for every case.
+
+The artifact directory must be new and its parent must exist. It contains the
+input scenario, `report.json`, and `junit.xml`. Ordinary fixture failures are
+reported per case and do not prevent later cases from running. Interrupted runs
+may leave only the copied scenario; checkpointed reports are planned.
+
+Exit status: 0 means all expectations passed, 1 means an assertion failed, 2 means
+invalid input, artifact I/O or a fixture failure, 3 means an expected observation
+was absent, and 130 means interruption. Fixture errors take precedence over
+inconclusive results, which take precedence over assertion failures. Existing
+measurement commands keep their original exit behavior.
+
 ## Quick start
 
 Requirements: Linux, root, iproute2, nftables, and conntrack. Build with a current stable
