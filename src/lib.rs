@@ -6,6 +6,7 @@ pub mod lab;
 mod quic;
 mod stun;
 mod translate;
+mod webrtc;
 mod worker;
 
 use std::sync::{
@@ -42,4 +43,8 @@ pub fn run_stun(binds: &str) -> anyhow::Result<()> {
 #[doc(hidden)]
 pub fn run_quic(role: &str) -> anyhow::Result<()> {
     quic::run(role)
+}
+#[doc(hidden)]
+pub fn run_webrtc(role: &str) -> anyhow::Result<()> {
+    webrtc::run(role)
 }
