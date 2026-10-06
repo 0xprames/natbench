@@ -163,6 +163,21 @@ impl Lab {
         self.run("a2", &["ip", "route", "add", "default", "via", "10.1.0.1"])?;
         Ok(())
     }
+    /// Shape every packet leaving both routers' WAN interfaces.
+    pub fn set_wan_impairment(&self, delay_ms: u64, loss_percent: u64) -> Result<()> {
+        let delay = format!("{delay_ms}ms");
+        let loss = format!("{loss_percent}%");
+        for router in ["ra", "rb"] {
+            self.run(
+                router,
+                &[
+                    "tc", "qdisc", "replace", "dev", "wan", "root", "netem", "delay", &delay,
+                    "loss", &loss,
+                ],
+            )?;
+        }
+        Ok(())
+    }
     fn command(&self, role: &str, args: &[&str]) -> Result<Command> {
         let ns = self
             .namespaces

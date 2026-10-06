@@ -70,6 +70,15 @@ enum Action {
         #[arg(long, value_enum, default_value = "drop")]
         router_input: RouterInput,
     },
+    /// Run one preserve/preserve traversal after delaying or dropping WAN packets.
+    Impair {
+        #[arg(long, default_value_t = 20)]
+        delay_ms: u64,
+        #[arg(long, default_value_t = 0)]
+        loss_percent: u64,
+        #[arg(long, default_value_t = 2.)]
+        timeout: f64,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -79,6 +88,8 @@ fn execute(action: Action) -> Result<i32> {
                 b: network.b,
                 router_input: network.router_input,
                 timeout_seconds: timeout,
+                delay_ms: 0,
+                loss_percent: 0,
                 executable: executable()?,
             })?;
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -144,6 +155,18 @@ fn execute(action: Action) -> Result<i32> {
                 router_input,
                 executable: executable()?,
             })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::Impair {
+            delay_ms,
+            loss_percent,
+            timeout,
+        } => {
+            let mut options = Options::current_exe()?;
+            options.delay_ms = delay_ms;
+            options.loss_percent = loss_percent;
+            options.timeout_seconds = timeout;
+            let result = bench::benchmark(&options)?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
     }
