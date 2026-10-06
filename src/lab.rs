@@ -119,6 +119,50 @@ impl Lab {
         )?;
         Ok(())
     }
+    /// Put a second client on router A's LAN, 10.1.0.3, by turning the point-to-point link into a bridge.
+    /// The bridge keeps the name `lan`, so the existing forward rule still matches.
+    pub fn add_same_lan_client(&mut self) -> Result<()> {
+        anyhow::ensure!(
+            !self.namespaces.contains_key("a2"),
+            "lan client already added"
+        );
+        self.run("ra", &["ip", "link", "set", "dev", "lan", "down"])?;
+        self.run("ra", &["ip", "addr", "del", "10.1.0.1/24", "dev", "lan"])?;
+        self.run("ra", &["ip", "link", "set", "dev", "lan", "name", "lan0"])?;
+        self.run("ra", &["ip", "link", "add", "lan", "type", "bridge"])?;
+        self.run(
+            "ra",
+            &[
+                "ip",
+                "link",
+                "set",
+                "dev",
+                "lan",
+                "type",
+                "bridge",
+                "stp_state",
+                "0",
+            ],
+        )?;
+        self.run("ra", &["ip", "link", "set", "dev", "lan0", "master", "lan"])?;
+        self.run("ra", &["ip", "addr", "add", "10.1.0.1/24", "dev", "lan"])?;
+        self.run("ra", &["ip", "link", "set", "dev", "lan0", "up"])?;
+        self.run("ra", &["ip", "link", "set", "dev", "lan", "up"])?;
+        let suffix = self.namespaces["wan"]
+            .trim_start_matches("nb")
+            .trim_end_matches("-wan")
+            .to_owned();
+        let name = format!("nb{suffix}-a2");
+        host(&["ip", "netns", "add", &name])?;
+        self.created.push(name.clone());
+        self.namespaces.insert("a2".into(), name);
+        self.run("a2", &["ip", "link", "set", "lo", "up"])?;
+        self.link("a2", "eth0", "ra", "lan1")?;
+        self.run("ra", &["ip", "link", "set", "dev", "lan1", "master", "lan"])?;
+        self.run("a2", &["ip", "addr", "add", "10.1.0.3/24", "dev", "eth0"])?;
+        self.run("a2", &["ip", "route", "add", "default", "via", "10.1.0.1"])?;
+        Ok(())
+    }
     fn command(&self, role: &str, args: &[&str]) -> Result<Command> {
         let ns = self
             .namespaces

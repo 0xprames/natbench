@@ -63,6 +63,13 @@ enum Action {
         #[arg(long, value_enum, default_value = "drop")]
         router_input: RouterInput,
     },
+    /// See whether two clients on one LAN can reach each other through their public mappings.
+    Hairpin {
+        #[arg(long, value_enum, default_value = "preserve")]
+        profile: Profile,
+        #[arg(long, value_enum, default_value = "drop")]
+        router_input: RouterInput,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -122,6 +129,17 @@ fn execute(action: Action) -> Result<i32> {
             router_input,
         } => {
             let result = bench::collision(&bench::CollisionOptions {
+                profile,
+                router_input,
+                executable: executable()?,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::Hairpin {
+            profile,
+            router_input,
+        } => {
+            let result = bench::hairpin(&bench::HairpinOptions {
                 profile,
                 router_input,
                 executable: executable()?,

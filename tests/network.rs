@@ -1,5 +1,8 @@
 use natbench::{
-    bench::{benchmark, collision, lifetime, matrix, CollisionOptions, LifetimeOptions, Options},
+    bench::{
+        benchmark, collision, hairpin, lifetime, matrix, CollisionOptions, HairpinOptions,
+        LifetimeOptions, Options,
+    },
     lab::{Lab, Profile, RouterInput},
 };
 use serde_json::Value;
@@ -180,5 +183,25 @@ fn preserve_keeps_the_first_mapping_when_the_source_port_collides() {
         result["first"]["mapped_endpoint_after_collision"], result["first"]["mapped_endpoint"],
         "{result}"
     );
+    assert_eq!(before, namespaces());
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn masquerade_does_not_hairpin_to_the_public_mapping() {
+    let before = namespaces();
+    let result = hairpin(&HairpinOptions {
+        profile: Profile::Preserve,
+        router_input: RouterInput::Drop,
+        executable: env!("CARGO_BIN_EXE_natbench").into(),
+    })
+    .unwrap();
+    assert_eq!(result["experiment"], "hairpin");
+    assert_eq!(result["established"], true, "{result}");
+    assert_eq!(result["behavior"], "no-hairpin", "{result}");
+    for direction in ["a_to_peer", "peer_to_a"] {
+        assert_eq!(result[direction]["received"], false, "{result}");
+        assert_eq!(result[direction]["behavior"], "no-hairpin", "{result}");
+    }
     assert_eq!(before, namespaces());
 }
