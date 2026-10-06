@@ -23,6 +23,15 @@ struct Network {
 }
 #[derive(Subcommand)]
 enum Action {
+    /// Explain prerequisites; --probe verifies kernel features in disposable namespaces.
+    Doctor {
+        #[arg(long)]
+        probe: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    #[command(name = "__nfqueue-probe", hide = true)]
+    NfqueueProbe { namespace: String },
     /// Execute a declarative built-in suite with CI assertions and JSON/JUnit artifacts.
     Test {
         scenario: PathBuf,
@@ -157,6 +166,16 @@ enum Action {
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
+        Action::Doctor { probe, json } => {
+            let report = natbench::doctor::inspect(probe);
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                print!("{}", report.summary());
+            }
+            return Ok(report.exit_code());
+        }
+        Action::NfqueueProbe { namespace } => natbench::probe_nfqueue(&namespace)?,
         Action::Test {
             scenario,
             artifacts,
@@ -343,6 +362,7 @@ fn main() {
     if !matches!(
         cli.command,
         Action::Endpoint { .. }
+            | Action::NfqueueProbe { .. }
             | Action::StunServer { .. }
             | Action::Relay
             | Action::Nat { .. }

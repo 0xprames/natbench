@@ -2,6 +2,7 @@
 
 //! Network fixtures and measured NAT experiments for Linux.
 pub mod bench;
+pub mod doctor;
 pub mod lab;
 mod quic;
 pub mod scenario;
@@ -57,4 +58,9 @@ pub fn run_tcp(role: &str) -> anyhow::Result<()> {
 #[doc(hidden)]
 pub fn run_tcp_observer() -> anyhow::Result<()> {
     tcp::observe()
+}
+
+#[doc(hidden)]
+pub fn probe_nfqueue(namespace: &str) -> anyhow::Result<()> {
+    translate::probe(namespace)
 }

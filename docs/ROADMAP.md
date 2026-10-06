@@ -33,10 +33,16 @@ Exit criteria:
   artifact preservation and resource cleanup. Failed jobs retain available artifacts.
 - Document observation limits and the difference between the test relay and TURN.
 
+Current progress: `natbench doctor` reports prerequisites and its active mode
+probes a disposable kernel fixture, including optional NFQUEUE. The binary workflow
+builds and smoke-tests x86-64 and ARM64 archives and checksums before tag publication.
+M1 still needs schema compatibility documentation and cancellation evidence tests
+before its release gate is complete.
+
 Initial implementation: `natbench test` executes a JSON suite against the existing
 built-in benchmark. This is the first foundation slice, not the application runner.
-Process logs, packet captures, report comparison, cancellation checkpoints and
-binary distribution remain subsequent work within this milestone or M2.
+Process logs, packet captures, report comparison and interruption checkpoints
+remain subsequent work within this milestone or M2.
 
 ## M2 Application scenario runner and first public launch
 
