@@ -5,6 +5,7 @@ pub mod bench;
 pub mod lab;
 mod quic;
 mod stun;
+mod tcp;
 mod translate;
 mod webrtc;
 mod worker;
@@ -47,4 +48,12 @@ pub fn run_quic(role: &str) -> anyhow::Result<()> {
 #[doc(hidden)]
 pub fn run_webrtc(role: &str) -> anyhow::Result<()> {
     webrtc::run(role)
+}
+#[doc(hidden)]
+pub fn run_tcp(role: &str) -> anyhow::Result<()> {
+    tcp::run(role)
+}
+#[doc(hidden)]
+pub fn run_tcp_observer() -> anyhow::Result<()> {
+    tcp::observe()
 }

@@ -37,6 +37,7 @@ sudo ./target/release/natbench stun
 sudo ./target/release/natbench quic
 sudo ./target/release/natbench webrtc
 sudo ./target/release/natbench throughput
+sudo ./target/release/natbench tcp
 sudo ./target/release/natbench run --role a -- ip route
 ```
 
@@ -227,6 +228,18 @@ from the first datagram until the requested total arrives. The result is that
 count, how long it took, and the bytes per second. A shortfall is a measured
 result. The number describes this lab.
 
+## TCP
+
+`tcp` tries a TCP simultaneous open between the preserve/preserve peers. Each
+client learns the router's public address with a short TCP connection from
+local port 10001 to an observer on the WAN. That connection is closed before
+the punch, so it does not hold external port 10000. Both peers bind local port
+10000, publish the predicted endpoint through the TCP relay, and call `connect`
+together. Neither side listens. On success they exchange one line, the
+controller stops the relay, and they exchange a second line on the same
+connection. While that connection is held, the result records the external port
+conntrack assigned. A failed open is a measured result.
+
 ## Bring your own programs
 
 ```rust,no_run
@@ -300,10 +313,10 @@ observations, hairpin observations, WAN loss and delay observations, a nested
 NAT in front of client A, a userspace UDP translator with endpoint-independent
 filtering, STUN Binding discovery on the traversal socket, a QUIC handshake
 on that socket, a WebRTC data channel on that socket, and a timed UDP transfer
-on the punched path. Both application checks still carry data after the relay
-is gone.
+on the punched path, and a TCP simultaneous open on the preserve/preserve
+path. Both application checks still carry data after the relay is gone.
 
-TCP hole punching and IPv6 are the following experiments.
+IPv6 is the following experiment.
 
 ## Development
 
@@ -317,7 +330,7 @@ sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, userspace translation, STUN discovery, QUIC handshake and relay shutdown, WebRTC data channel and relay shutdown, a timed UDP transfer, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, userspace translation, STUN discovery, QUIC handshake and relay shutdown, WebRTC data channel and relay shutdown, a timed UDP transfer, a TCP simultaneous open, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
 ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.
