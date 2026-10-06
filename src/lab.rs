@@ -272,18 +272,58 @@ impl Lab {
                 ],
             )?;
             self.run(router, &["sysctl", "-q", "-w", "net.ipv4.ip_forward=1"])?;
-            let random = if profile == Profile::Random {
-                " fully-random"
-            } else {
-                ""
-            };
-            let blocked = if profile == Profile::UdpBlocked {
-                "meta l4proto udp drop;"
-            } else {
-                ""
-            };
-            let rules = format!(
-                r#"table ip translation {{
+            self.apply_nat(router, profile, input)?;
+        }
+        Ok(())
+    }
+    /// Insert a second NAT between router A and the public bridge.
+    /// Router A's WAN becomes 10.8.0.2; the new router publishes 198.18.0.10.
+    pub fn add_outer_nat(&mut self, profile: Profile, input: RouterInput) -> Result<()> {
+        anyhow::ensure!(
+            !self.namespaces.contains_key("oa"),
+            "outer nat already added"
+        );
+        let suffix = self.namespaces["wan"]
+            .trim_start_matches("nb")
+            .trim_end_matches("-wan")
+            .to_owned();
+        let name = format!("nb{suffix}-oa");
+        host(&["ip", "netns", "add", &name])?;
+        self.created.push(name.clone());
+        self.namespaces.insert("oa".into(), name.clone());
+        self.run("oa", &["ip", "link", "set", "lo", "up"])?;
+        // The public veth is currently router A's WAN. Move that end onto the outer NAT
+        // and use it as the outer LAN, then give the outer NAT a new public port.
+        self.run("ra", &["ip", "addr", "del", "198.18.0.10/24", "dev", "wan"])?;
+        self.run("wan", &["ip", "link", "set", "dev", "a", "nomaster"])?;
+        self.run("wan", &["ip", "link", "set", "dev", "a", "down"])?;
+        self.run("wan", &["ip", "link", "set", "dev", "a", "netns", &name])?;
+        self.run("oa", &["ip", "link", "set", "dev", "a", "name", "lan"])?;
+        self.run("oa", &["ip", "link", "set", "dev", "lan", "up"])?;
+        self.run("ra", &["ip", "link", "set", "dev", "wan", "up"])?;
+        self.run("ra", &["ip", "addr", "add", "10.8.0.2/24", "dev", "wan"])?;
+        self.run("oa", &["ip", "addr", "add", "10.8.0.1/24", "dev", "lan"])?;
+        self.run("ra", &["ip", "route", "add", "default", "via", "10.8.0.1"])?;
+        self.link("oa", "wan", "wan", "a")?;
+        self.run("wan", &["ip", "link", "set", "dev", "a", "master", "br0"])?;
+        self.run("oa", &["ip", "addr", "add", "198.18.0.10/24", "dev", "wan"])?;
+        self.run("oa", &["sysctl", "-q", "-w", "net.ipv4.ip_forward=1"])?;
+        self.apply_nat("oa", profile, input)?;
+        Ok(())
+    }
+    fn apply_nat(&self, router: &str, profile: Profile, input: RouterInput) -> Result<()> {
+        let random = if profile == Profile::Random {
+            " fully-random"
+        } else {
+            ""
+        };
+        let blocked = if profile == Profile::UdpBlocked {
+            "meta l4proto udp drop;"
+        } else {
+            ""
+        };
+        let rules = format!(
+            r#"table ip translation {{
  chain outbound {{ type nat hook postrouting priority srcnat; oifname "wan" masquerade{random}; }}
 }}
 table ip firewall {{
@@ -294,19 +334,18 @@ table ip firewall {{
  ct state established,related accept; iifname "lan" oifname "wan" accept; }}
 }}
 "#,
-                input.policy()
-            );
-            let mut child = self
-                .command(router, &["nft", "-f", "-"])?
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()?;
-            let write_result = child.stdin.take().unwrap().write_all(rules.as_bytes());
-            let output = child.wait_with_output()?;
-            checked(output, &["nft", "-f", "-"])?;
-            write_result?;
-        }
+            input.policy()
+        );
+        let mut child = self
+            .command(router, &["nft", "-f", "-"])?
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+        let write_result = child.stdin.take().unwrap().write_all(rules.as_bytes());
+        let output = child.wait_with_output()?;
+        checked(output, &["nft", "-f", "-"])?;
+        write_result?;
         Ok(())
     }
 }
