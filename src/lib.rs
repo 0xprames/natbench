@@ -3,6 +3,7 @@
 //! Network fixtures and measured NAT experiments for Linux.
 pub mod bench;
 pub mod lab;
+mod quic;
 mod stun;
 mod translate;
 mod worker;
@@ -37,4 +38,8 @@ pub fn run_nat(lan: &str, wan: &str) -> anyhow::Result<()> {
 #[doc(hidden)]
 pub fn run_stun(binds: &str) -> anyhow::Result<()> {
     worker::stun_server(binds)
+}
+#[doc(hidden)]
+pub fn run_quic(role: &str) -> anyhow::Result<()> {
+    quic::run(role)
 }

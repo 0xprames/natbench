@@ -107,6 +107,16 @@ enum Action {
         #[arg(long, default_value_t = 2.)]
         timeout: f64,
     },
+    /// Handshake QUIC on the STUN socket and exchange data again after the relay stops.
+    Quic {
+        #[arg(long, default_value_t = 4.)]
+        timeout: f64,
+    },
+    #[command(name = "__quic", hide = true)]
+    QuicWorker {
+        #[arg(value_parser = ["a", "b"])]
+        role: String,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -229,6 +239,14 @@ fn execute(action: Action) -> Result<i32> {
             let result = bench::benchmark(&options)?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
+        Action::Quic { timeout } => {
+            let result = bench::quic(&bench::QuicOptions {
+                timeout_seconds: timeout,
+                executable: executable()?,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::QuicWorker { role } => natbench::run_quic(&role)?,
     }
     Ok(0)
 }
@@ -240,7 +258,11 @@ fn main() {
     // Workers use the OS default termination behavior; only the controller owns cleanup.
     if !matches!(
         cli.command,
-        Action::Endpoint { .. } | Action::StunServer { .. } | Action::Relay | Action::Nat { .. }
+        Action::Endpoint { .. }
+            | Action::StunServer { .. }
+            | Action::Relay
+            | Action::Nat { .. }
+            | Action::QuicWorker { .. }
     ) {
         for signal in [signal_hook::consts::SIGINT, signal_hook::consts::SIGTERM] {
             if let Err(error) =
