@@ -18,6 +18,7 @@ const DESTINATIONS: [(&str, u16); 3] = [
     ("198.18.0.1", 9001),
     ("198.18.0.2", 9000),
 ];
+const CLIENT_A: &str = "10.1.0.2";
 
 /// The helper executable must be a natbench binary (normally current_exe()).
 pub struct Options {
@@ -43,6 +44,23 @@ impl Options {
                 && self.timeout_seconds > 0.
                 && self.timeout_seconds <= 3600.,
             "timeout must be finite and between 0 and 3600 seconds (exclusive of 0)"
+        );
+        Ok(())
+    }
+}
+
+/// Conntrack expiry and refresh observations. The executable must be a natbench binary.
+pub struct LifetimeOptions {
+    pub profile: Profile,
+    pub router_input: RouterInput,
+    pub udp_timeout_seconds: u64,
+    pub executable: PathBuf,
+}
+impl LifetimeOptions {
+    fn validate(&self) -> Result<()> {
+        anyhow::ensure!(
+            (2..=60).contains(&self.udp_timeout_seconds),
+            "udp timeout must be between 2 and 60 seconds"
         );
         Ok(())
     }
@@ -272,6 +290,230 @@ pub fn matrix(options: &Options) -> Result<Vec<Value>> {
     Ok(results)
 }
 
+#[derive(Clone, Copy)]
+enum Refresh {
+    None,
+    Outbound,
+    Inbound,
+}
+
+fn pause(total: Duration) -> Result<()> {
+    let deadline = Instant::now() + total;
+    while Instant::now() < deadline {
+        check_cancelled()?;
+        let slice =
+            Duration::from_millis(20).min(deadline.saturating_duration_since(Instant::now()));
+        if slice.is_zero() {
+            break;
+        }
+        thread::sleep(slice);
+    }
+    Ok(())
+}
+
+fn set_udp_timeout(lab: &Lab, key: &str, seconds: u64) -> Result<()> {
+    let assignment = format!("net.netfilter.{key}={seconds}");
+    lab.run("ra", &["sysctl", "-q", "-w", &assignment])?;
+    let output = lab.run("ra", &["sysctl", "-n", &format!("net.netfilter.{key}")])?;
+    let actual = String::from_utf8(output.stdout)?.trim().parse::<u64>()?;
+    anyhow::ensure!(
+        actual == seconds,
+        "router kept {key}={actual}, not {seconds}"
+    );
+    Ok(())
+}
+
+fn conntrack_dump(lab: &Lab) -> Result<String> {
+    let output = lab.run("ra", &["cat", "/proc/net/nf_conntrack"])?;
+    Ok(String::from_utf8(output.stdout)?)
+}
+
+/// The first `src=` group is the LAN tuple. The reply tuple repeats those ports
+/// when allocation preserves them, so a later `dport=` is not the mapping key.
+fn original_udp_tuple(line: &str) -> Option<(&str, u16, &str, u16)> {
+    let mut src = None;
+    let mut dst = None;
+    let mut sport = None;
+    let mut dport = None;
+    let mut sources = 0u8;
+    for field in line.split_whitespace() {
+        let Some((key, value)) = field.split_once('=') else {
+            continue;
+        };
+        if key == "src" {
+            sources += 1;
+            if sources > 1 {
+                break;
+            }
+        }
+        if sources != 1 {
+            continue;
+        }
+        match key {
+            "src" => src = Some(value),
+            "dst" => dst = Some(value),
+            "sport" => sport = value.parse().ok(),
+            "dport" => dport = value.parse().ok(),
+            _ => {}
+        }
+    }
+    Some((src?, sport?, dst?, dport?))
+}
+
+fn udp_flow_present(dump: &str, src: &str, sport: u16, dst: &str, dport: u16) -> bool {
+    dump.lines().any(|line| {
+        line.split_whitespace().next() == Some("ipv4")
+            && line.split_whitespace().any(|field| field == "udp")
+            && original_udp_tuple(line) == Some((src, sport, dst, dport))
+    })
+}
+
+fn mapping_phase(
+    lab: &Lab,
+    client: &mut Endpoint,
+    observer: &mut Endpoint,
+    refresh: Refresh,
+    timeout: u64,
+    label: &str,
+) -> Result<Value> {
+    let sport = client.ready["ready"][0][1]
+        .as_u64()
+        .context("local port missing")?;
+    anyhow::ensure!(sport <= u16::MAX as u64, "local port missing");
+    let sport = sport as u16;
+    let destination_port = DESTINATIONS[0].1;
+    let opened = format!("open-{label}");
+    client.send(0, destination(0), &opened)?;
+    let packet = observer.receive(&opened, 0.5)?;
+    if packet.is_null() {
+        return Ok(Value::Null);
+    }
+    let mapped = packet["from"].clone();
+    let dump = conntrack_dump(lab)?;
+    anyhow::ensure!(
+        udp_flow_present(&dump, CLIENT_A, sport, DESTINATIONS[0].0, destination_port),
+        "translated packet has no conntrack entry:\n{dump}"
+    );
+    // The entry is created by the open packet. Keepalives, or the lack of them,
+    // then have to outlast that initial timer.
+    let window = Duration::from_secs(timeout + 2);
+    match refresh {
+        Refresh::None => pause(window)?,
+        Refresh::Outbound | Refresh::Inbound => {
+            let started = Instant::now();
+            loop {
+                match refresh {
+                    Refresh::Outbound => {
+                        client.send(0, destination(0), &format!("keep-{label}"))?;
+                    }
+                    Refresh::Inbound => {
+                        observer.send(0, mapped.clone(), &format!("keep-{label}"))?;
+                    }
+                    Refresh::None => unreachable!("idle waits without keepalives"),
+                }
+                let remaining = window.saturating_sub(started.elapsed());
+                if remaining.is_zero() {
+                    break;
+                }
+                pause(Duration::from_secs(1).min(remaining))?;
+            }
+        }
+    }
+    let present = udp_flow_present(
+        &conntrack_dump(lab)?,
+        CLIENT_A,
+        sport,
+        DESTINATIONS[0].0,
+        destination_port,
+    );
+    let probe = format!("probe-{label}");
+    observer.send(0, mapped.clone(), &probe)?;
+    let returned = !client.receive(&probe, 0.5)?.is_null();
+    Ok(json!({
+        "mapped_endpoint": mapped,
+        "conntrack_present": present,
+        "return_traffic": returned,
+    }))
+}
+
+pub fn lifetime(options: &LifetimeOptions) -> Result<Value> {
+    options.validate()?;
+    let started = Instant::now();
+    let mut lab = Lab::create(options.profile, options.profile, options.router_input)?;
+    // Unreplied and answered flows use different timers. Equal values make one
+    // idle gap mean the same thing for both, whichever timer the flow is on.
+    let timeout = options.udp_timeout_seconds;
+    set_udp_timeout(&lab, "nf_conntrack_udp_timeout", timeout)?;
+    set_udp_timeout(&lab, "nf_conntrack_udp_timeout_stream", timeout)?;
+    let mut observer = Endpoint::udp(
+        &mut lab,
+        "wan",
+        &options.executable,
+        json!([DESTINATIONS[0]]),
+    )?;
+    let mut client = Endpoint::udp(
+        &mut lab,
+        "a",
+        &options.executable,
+        json!([["0.0.0.0", 10000]]),
+    )?;
+    let idle = mapping_phase(
+        &lab,
+        &mut client,
+        &mut observer,
+        Refresh::None,
+        timeout,
+        "idle",
+    )?;
+    let (outbound, inbound) = if idle.is_null() {
+        (Value::Null, Value::Null)
+    } else {
+        let outbound = mapping_phase(
+            &lab,
+            &mut client,
+            &mut observer,
+            Refresh::Outbound,
+            timeout,
+            "outbound",
+        )?;
+        anyhow::ensure!(
+            !outbound.is_null(),
+            "outbound refresh mapping was not observed"
+        );
+        let inbound = mapping_phase(
+            &lab,
+            &mut client,
+            &mut observer,
+            Refresh::Inbound,
+            timeout,
+            "inbound",
+        )?;
+        anyhow::ensure!(
+            !inbound.is_null(),
+            "inbound refresh mapping was not observed"
+        );
+        (outbound, inbound)
+    };
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")?
+        .trim()
+        .to_owned();
+    Ok(json!({
+        "schema_version": 1,
+        "experiment": "mapping-lifetime",
+        "kernel": kernel,
+        "backend": "linux-nftables",
+        "profile": options.profile,
+        "router_input": options.router_input,
+        "udp_timeout_seconds": timeout,
+        "udp_stream_timeout_seconds": timeout,
+        "established": !idle.is_null(),
+        "idle": idle,
+        "outbound_refresh": outbound,
+        "inbound_refresh": inbound,
+        "elapsed_seconds": (started.elapsed().as_secs_f64() * 1000.).round() / 1000.,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,5 +524,44 @@ mod tests {
             options.timeout_seconds = timeout;
             assert!(benchmark(&options).is_err());
         }
+    }
+    #[test]
+    fn invalid_lifetime_timeouts_do_not_create_namespaces() {
+        let executable = std::env::current_exe().unwrap();
+        for udp_timeout_seconds in [0, 1, 61] {
+            let options = LifetimeOptions {
+                profile: Profile::Preserve,
+                router_input: RouterInput::Drop,
+                udp_timeout_seconds,
+                executable: executable.clone(),
+            };
+            assert!(lifetime(&options).is_err());
+        }
+    }
+    #[test]
+    fn conntrack_match_uses_the_lan_tuple_only() {
+        let dump = "\
+ipv4     2 udp      17 2 src=10.1.0.2 dst=198.18.0.1 sport=10000 dport=9000 src=198.18.0.1 dst=198.18.0.10 sport=9000 dport=10000 use=1
+ipv4     2 tcp      6 2 src=10.1.0.2 dst=198.18.0.1 sport=10000 dport=9000 src=198.18.0.1 dst=198.18.0.10 sport=9000 dport=10000 use=1
+";
+        assert!(udp_flow_present(dump, CLIENT_A, 10000, "198.18.0.1", 9000));
+        let prefixed = "\
+ipv4     2 udp      17 2 src=10.1.0.2 dst=198.18.0.1 sport=100000 dport=90001 src=198.18.0.1 dst=198.18.0.10 sport=90001 dport=100000 use=1
+";
+        assert!(!udp_flow_present(
+            prefixed,
+            CLIENT_A,
+            10000,
+            "198.18.0.1",
+            9000
+        ));
+        assert!(!udp_flow_present(
+            dump,
+            "198.18.0.1",
+            9000,
+            "198.18.0.10",
+            10000
+        ));
+        assert!(!udp_flow_present("", CLIENT_A, 10000, "198.18.0.1", 9000));
     }
 }

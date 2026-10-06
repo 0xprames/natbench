@@ -26,6 +26,7 @@ sudo ./target/release/natbench bench
 sudo ./target/release/natbench bench --a preserve --b random
 sudo ./target/release/natbench matrix > results.json
 sudo ./target/release/natbench bench --router-input accept
+sudo ./target/release/natbench lifetime
 sudo ./target/release/natbench run --role a -- ip route
 ```
 
@@ -91,6 +92,27 @@ If forwarded UDP is blocked, mapping/filtering are `unobserved`; absence of pack
 is not enough to infer a NAT class. `--timeout` sets the hole-punch attempt window
 (default 2 seconds, maximum 3600); control exchanges can add a small amount of time
 to that window.
+
+## Mapping lifetime
+
+`lifetime` is a separate experiment, so `matrix` stays a traversal run. It sets
+both UDP conntrack timers on router A to the same value (`--udp-timeout`, default
+3 seconds, allowed range 2–60). Linux uses one timer before a reply is seen and
+another after; equal values make a single idle gap apply to either timer.
+
+On one mapping, the run then checks three patterns. Conntrack is read
+in the router namespace, because a port-preserving NAT can recreate the same
+public endpoint and look unchanged from the outside.
+
+1. No further packets. After the timeout, the entry should be gone, and an inbound
+   probe to the old public endpoint should not arrive.
+2. Outbound keepalives on the original socket, for longer than the timeout. The
+   entry should remain, and a probe should arrive.
+3. One outbound packet to create the mapping, then only inbound keepalives from
+   the observer. The entry should remain, and a further probe should arrive.
+
+`udp-blocked` reports `established: false` and null for the three phases.
+This records Linux conntrack's behavior. It does not select a refresh policy.
 
 ## Bring your own programs
 
@@ -160,11 +182,11 @@ the upstream GPL-3.0 license.
 
 Implemented: IPv4 UDP observations and traversal, IPv4 TCP relay controls, three
 kernel profiles, asymmetric matrices, generic process execution, JSON results,
-and lifecycle tests.
+lifecycle tests, and mapping expiry and refresh observations.
 
 Useful next steps: independently configurable mapping/filtering via a userspace
-translator; mapping expiry and refresh; hairpinning; port collisions; nested NAT;
-packet loss/delay; real STUN clients; application adapters for QUIC and WebRTC.
+translator; hairpinning; port collisions; nested NAT; packet loss/delay; real
+STUN clients; application adapters for QUIC and WebRTC.
 IPv6, TCP hole punching, and performance measurement are outside the current suite.
 
 ## Development
@@ -179,7 +201,7 @@ sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+input collision, mapping expiry and refresh, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
 ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.
