@@ -39,6 +39,38 @@ was absent, and 130 means interruption. Fixture errors take precedence over
 inconclusive results, which take precedence over assertion failures. Existing
 measurement commands keep their original exit behavior.
 
+## Prerequisite checks
+
+`natbench doctor` checks Linux, effective UID and executable availability without
+creating network resources. `sudo natbench doctor --probe` creates and removes a
+disposable fixture to check namespace creation, veth/bridge devices, forwarding
+and nftables. It also probes optional netem, conntrack access and NFQUEUE support.
+Use `--json` to save a versioned report in CI.
+
+Required failures exit 1. Optional failures are reported but do not prevent core
+traversal experiments; inspect them before using `impair`, lifetime/collision or
+`translate`. Finding tools and UID 0 alone does not establish kernel capability;
+use the active probe to check a restricted container. The active probe does not
+change the parent namespace's firewall or routes.
+
+## Binary distribution
+
+The release workflow builds native x86-64 and ARM64 GNU/Linux archives on Ubuntu
+22.04. Binaries require a compatible glibc-based Linux distribution; Alpine/musl,
+macOS and Windows are not binary targets for the current fixture. Kernel features
+and system tools remain prerequisites even when Rust is not installed.
+
+Each archive includes the executable, license, README, documentation and sample
+scenarios. Verify the downloaded archive against its entry in `SHA256SUMS` before
+extracting it. Run the extracted binary's `doctor --probe` and included scenario.
+Checksums check integrity; they do not independently authenticate a download.
+
+Branch/PR builds retain tested archives as workflow artifacts. A version-matching
+`vX.Y.Z` tag publishes archives only after both architectures pass tests and
+extracted-binary smoke checks; prerelease tags publish prerelease entries. No tag
+or release is created by a branch build. First stable distribution waits for the
+M1 gate in the roadmap.
+
 ## Quick start
 
 Requirements: Linux, root, iproute2, nftables, and conntrack. Build with a current stable
@@ -48,6 +80,7 @@ On Debian/Ubuntu, from the repository root:
 ```sh
 sudo apt-get install iproute2 nftables conntrack
 cargo build --release --locked
+sudo ./target/release/natbench doctor --probe
 sudo ./target/release/natbench bench
 sudo ./target/release/natbench bench --a preserve --b random
 sudo ./target/release/natbench matrix > results.json

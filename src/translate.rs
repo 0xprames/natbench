@@ -216,6 +216,45 @@ fn open_socket() -> Result<i32> {
     Ok(fd)
 }
 
+/// Verify NFQUEUE configuration, called only inside a disposable router namespace.
+pub fn probe(namespace: &str) -> Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    anyhow::ensure!(
+        namespace.starts_with("nb")
+            && namespace
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'-'),
+        "NFQUEUE probe requires a natbench namespace"
+    );
+    let expected = std::fs::metadata(format!("/var/run/netns/{namespace}"))?;
+    let current = std::fs::metadata("/proc/self/ns/net")?;
+    anyhow::ensure!(
+        expected.ino() == current.ino() && expected.dev() == current.dev(),
+        "NFQUEUE probe must run inside the specified namespace"
+    );
+    let socket = Netlink(open_socket()?);
+    let timeout = libc::timeval {
+        tv_sec: 2,
+        tv_usec: 0,
+    };
+    // SAFETY: the descriptor is live and timeout has the expected socket option layout.
+    let result = unsafe {
+        libc::setsockopt(
+            socket.0,
+            libc::SOL_SOCKET,
+            libc::SO_RCVTIMEO,
+            (&timeout as *const libc::timeval).cast(),
+            std::mem::size_of::<libc::timeval>() as libc::socklen_t,
+        )
+    };
+    anyhow::ensure!(
+        result == 0,
+        "set NFQUEUE probe timeout: {}",
+        std::io::Error::last_os_error()
+    );
+    configure(&socket)
+}
+
 fn configure(socket: &Netlink) -> Result<()> {
     // Nothing is bound on the first start, so an unbind failure is expected.
     let _ = transact(
