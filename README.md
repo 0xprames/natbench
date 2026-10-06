@@ -31,6 +31,7 @@ sudo ./target/release/natbench collision
 sudo ./target/release/natbench hairpin
 sudo ./target/release/natbench impair
 sudo ./target/release/natbench impair --loss-percent 100
+sudo ./target/release/natbench nested
 sudo ./target/release/natbench run --role a -- ip route
 ```
 
@@ -150,6 +151,15 @@ egress, so the round trip is twice `--delay-ms` (default 20, maximum 1000).
 `--loss-percent` defaults to 0 and cannot exceed 100. A total loss still
 reports the NAT class observed before the drop.
 
+## Nested NAT
+
+`nested` runs the usual preserve/preserve measurement with a second NAT in
+front of client A. Router A's WAN is the private address 10.8.0.2. A new
+router masquerades that onto 198.18.0.10, the address client A used to publish
+directly. Client B is unchanged. The result is the normal bench JSON with
+`nested_a` set, so the public mapping and the hole punch are observations of
+the two NATs composed, not of the inner router alone.
+
 ## Bring your own programs
 
 ```rust,no_run
@@ -219,11 +229,11 @@ the upstream GPL-3.0 license.
 Implemented: IPv4 UDP observations and traversal, IPv4 TCP relay controls, three
 kernel profiles, asymmetric matrices, generic process execution, JSON results,
 lifecycle tests, mapping expiry and refresh observations, port-collision
-observations, hairpin observations, and WAN loss and delay observations.
+observations, hairpin observations, WAN loss and delay observations, and a
+nested NAT in front of client A.
 
 Useful next steps: independently configurable mapping/filtering via a userspace
-translator; nested NAT; real STUN clients; application adapters for QUIC and
-WebRTC.
+translator; real STUN clients; application adapters for QUIC and WebRTC.
 IPv6, TCP hole punching, and performance measurement are outside the current suite.
 
 ## Development
@@ -238,7 +248,7 @@ sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+input collision, mapping expiry and refresh, port collision, hairpinning, WAN loss and delay, nested NAT, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
 ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.

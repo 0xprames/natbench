@@ -30,6 +30,7 @@ pub struct Options {
     pub timeout_seconds: f64,
     pub delay_ms: u64,
     pub loss_percent: u64,
+    pub nest_a: bool,
     pub executable: PathBuf,
 }
 impl Options {
@@ -41,6 +42,7 @@ impl Options {
             timeout_seconds: 2.,
             delay_ms: 0,
             loss_percent: 0,
+            nest_a: false,
             executable: std::env::current_exe()?,
         })
     }
@@ -216,6 +218,9 @@ pub fn benchmark(options: &Options) -> Result<Value> {
     options.validate()?;
     let started = Instant::now();
     let mut lab = Lab::create(options.a, options.b, options.router_input)?;
+    if options.nest_a {
+        lab.add_outer_nat(options.a, options.router_input)?;
+    }
     let mut observer = Endpoint::udp(&mut lab, "wan", &options.executable, json!(DESTINATIONS))?;
     let relay = Endpoint::launch(&mut lab, "wan", &options.executable, &["__relay"])?;
     let mut clients = [
@@ -288,6 +293,7 @@ pub fn benchmark(options: &Options) -> Result<Value> {
         json!({"schema_version": 1, "kernel": kernel, "backend": "linux-nftables",
         "profiles": {"a": options.a, "b": options.b}, "router_input": options.router_input,
         "impairment": {"delay_ms": options.delay_ms, "loss_percent": options.loss_percent},
+        "nested_a": options.nest_a,
         "observations": {"a": observations[0], "b": observations[1]},
         "relay": {"bidirectional_before": before, "outage_detected": {"a": outage[0], "b": outage[1]}, "bidirectional_after_restart": recovered},
         "traversal": {"received": {"a": reached[0], "b": reached[1]}, "bidirectional": reached.iter().all(|&v| v),
@@ -307,6 +313,7 @@ pub fn matrix(options: &Options) -> Result<Vec<Value>> {
                 timeout_seconds: options.timeout_seconds,
                 delay_ms: options.delay_ms,
                 loss_percent: options.loss_percent,
+                nest_a: options.nest_a,
                 executable: options.executable.clone(),
             })?);
         }

@@ -31,6 +31,7 @@ fn options() -> Options {
         timeout_seconds: 1.,
         delay_ms: 0,
         loss_percent: 0,
+        nest_a: false,
         executable: env!("CARGO_BIN_EXE_natbench").into(),
     }
 }
@@ -243,5 +244,27 @@ fn total_wan_loss_blocks_the_punch_after_discovery() {
         result["relay"]["bidirectional_after_restart"], false,
         "{result}"
     );
+    assert_eq!(before, namespaces());
+}
+
+#[test]
+#[ignore = "requires root, Linux network namespaces, iproute2 and nftables"]
+fn nested_preserve_still_maps_and_traverses() {
+    let before = namespaces();
+    let mut options = options();
+    options.nest_a = true;
+    options.timeout_seconds = 2.;
+    let result = benchmark(&options).unwrap();
+    assert_eq!(result["nested_a"], true);
+    assert_eq!(result["relay"]["bidirectional_before"], true, "{result}");
+    assert_eq!(
+        result["observations"]["a"]["mapping"], "endpoint-independent",
+        "{result}"
+    );
+    assert_eq!(
+        result["observations"]["a"]["observed_endpoints"][0][0], "198.18.0.10",
+        "{result}"
+    );
+    assert_eq!(result["traversal"]["bidirectional"], true, "{result}");
     assert_eq!(before, namespaces());
 }

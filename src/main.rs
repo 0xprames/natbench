@@ -79,6 +79,11 @@ enum Action {
         #[arg(long, default_value_t = 2.)]
         timeout: f64,
     },
+    /// Run one preserve/preserve measurement with a second NAT in front of client A.
+    Nested {
+        #[arg(long, default_value_t = 2.)]
+        timeout: f64,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -90,6 +95,7 @@ fn execute(action: Action) -> Result<i32> {
                 timeout_seconds: timeout,
                 delay_ms: 0,
                 loss_percent: 0,
+                nest_a: false,
                 executable: executable()?,
             })?;
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -165,6 +171,13 @@ fn execute(action: Action) -> Result<i32> {
             let mut options = Options::current_exe()?;
             options.delay_ms = delay_ms;
             options.loss_percent = loss_percent;
+            options.timeout_seconds = timeout;
+            let result = bench::benchmark(&options)?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::Nested { timeout } => {
+            let mut options = Options::current_exe()?;
+            options.nest_a = true;
             options.timeout_seconds = timeout;
             let result = bench::benchmark(&options)?;
             println!("{}", serde_json::to_string_pretty(&result)?);
