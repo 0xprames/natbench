@@ -1,6 +1,6 @@
 [package]
 name = "natbench"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 description = "Measure NAT behavior, UDP traversal, and relay recovery in isolated Linux networks"
@@ -20,3 +20,6 @@ signal-hook = "0.3"
 socket2 = "0.5"
 str0m = { version = "0.24.1", default-features = false, features = ["rust-crypto"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread", "time"] }
+
+[dev-dependencies]
+jsonschema = { version = "0.58.6", default-features = false }

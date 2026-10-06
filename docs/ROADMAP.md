@@ -36,13 +36,14 @@ Exit criteria:
 Current progress: `natbench doctor` reports prerequisites and its active mode
 probes a disposable kernel fixture, including optional NFQUEUE. The binary workflow
 builds and smoke-tests x86-64 and ARM64 archives and checksums before tag publication.
-M1 still needs schema compatibility documentation and cancellation evidence tests
-before its release gate is complete.
+Schema compatibility documentation and cancellation evidence tests are implemented.
+Version 0.1.1 is prepared with suite report schema 2, preserved partial results and
+SIGINT/SIGTERM cleanup coverage. Merge/review, clean cross-architecture CI and a
+version-matching tag remain the publication gates.
 
 Initial implementation: `natbench test` executes a JSON suite against the existing
 built-in benchmark. This is the first foundation slice, not the application runner.
-Process logs, packet captures, report comparison and interruption checkpoints
-remain subsequent work within this milestone or M2.
+Process logs, packet captures and report comparison remain M2 work.
 
 ## M2 Application scenario runner and first public launch
 

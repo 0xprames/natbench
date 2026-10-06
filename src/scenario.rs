@@ -6,7 +6,10 @@ use crate::{
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fs, path::Path};
+use std::{fs, io::Write, path::Path, sync::atomic::Ordering};
+
+pub const SCENARIO_SCHEMA_VERSION: u32 = 1;
+pub const REPORT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -50,9 +53,19 @@ pub struct Report {
     pub schema_version: u32,
     pub scenario: String,
     pub cases: Vec<CaseReport>,
+    pub planned_cases: Vec<String>,
+    pub active_case: Option<String>,
+    pub complete: bool,
+    pub interrupted: bool,
 }
 impl Report {
     pub fn exit_code(&self) -> i32 {
+        if self.interrupted {
+            return 130;
+        }
+        if !self.complete {
+            return 3;
+        }
         if self
             .cases
             .iter()
@@ -86,20 +99,30 @@ impl Report {
                     Status::InfrastructureFailed | Status::Inconclusive
                 )
             })
-            .count();
-        let mut xml = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuite name=\"natbench\" tests=\"{}\" failures=\"{failures}\" errors=\"{errors}\">\n", self.cases.len());
-        for case in &self.cases {
-            xml.push_str(&format!("<testcase name=\"{}\">", escape(&case.name)));
-            let tag = match case.status {
-                Status::Passed => None,
-                Status::AssertionFailed => Some("failure"),
-                _ => Some("error"),
-            };
-            if let Some(tag) = tag {
-                xml.push_str(&format!(
-                    "<{tag} message=\"{}\"/>",
-                    escape(&case.messages.join("; "))
-                ));
+            .count()
+            + usize::from(self.interrupted && self.active_case.is_some());
+        let skipped = self.planned_cases.len()
+            - self.cases.len()
+            - usize::from(self.interrupted && self.active_case.is_some());
+        let mut xml = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuite name=\"natbench\" tests=\"{}\" failures=\"{failures}\" errors=\"{errors}\" skipped=\"{skipped}\">\n", self.planned_cases.len());
+        for name in &self.planned_cases {
+            xml.push_str(&format!("<testcase name=\"{}\">", escape(name)));
+            if let Some(case) = self.cases.iter().find(|c| c.name == *name) {
+                let tag = match case.status {
+                    Status::Passed => None,
+                    Status::AssertionFailed => Some("failure"),
+                    _ => Some("error"),
+                };
+                if let Some(tag) = tag {
+                    xml.push_str(&format!(
+                        "<{tag} message=\"{}\"/>",
+                        escape(&case.messages.join("; "))
+                    ));
+                }
+            } else if self.interrupted && self.active_case.as_ref() == Some(name) {
+                xml.push_str("<error type=\"interrupted\" message=\"suite interrupted while this case was running\"/>");
+            } else {
+                xml.push_str("<skipped message=\"case has not completed\"/>");
             }
             xml.push_str("</testcase>\n");
         }
@@ -110,7 +133,7 @@ impl Report {
 fn escape(input: &str) -> String {
     input
         .chars()
-        .filter(|c| *c == '\t' || *c == '\n' || *c == '\r' || *c >= ' ')
+        .filter(|c| matches!(*c, '\t' | '\n' | '\r' | '\u{20}'..='\u{d7ff}' | '\u{e000}'..='\u{fffd}' | '\u{10000}'..='\u{10ffff}'))
         .flat_map(|c| match c {
             '&' => "&amp;".chars().collect::<Vec<_>>(),
             '<' => "&lt;".chars().collect(),
@@ -124,7 +147,7 @@ fn escape(input: &str) -> String {
 impl Suite {
     pub fn validate(&self) -> Result<()> {
         anyhow::ensure!(
-            self.schema_version == 1,
+            self.schema_version == SCENARIO_SCHEMA_VERSION,
             "unsupported scenario schema_version"
         );
         anyhow::ensure!(
@@ -170,13 +193,46 @@ impl Suite {
     pub fn evaluate(
         &self,
         source: String,
+        experiment: impl FnMut(&Case) -> Result<Value>,
+    ) -> Result<Report> {
+        self.evaluate_checkpointed(
+            source,
+            experiment,
+            |_| Ok(()),
+            || crate::cancellation().load(Ordering::Relaxed),
+        )
+    }
+    fn evaluate_checkpointed(
+        &self,
+        source: String,
         mut experiment: impl FnMut(&Case) -> Result<Value>,
+        mut checkpoint: impl FnMut(&Report) -> Result<()>,
+        cancelled: impl Fn() -> bool,
     ) -> Result<Report> {
         self.validate()?;
-        let mut cases = Vec::new();
+        let mut report = Report {
+            schema_version: REPORT_SCHEMA_VERSION,
+            scenario: source,
+            cases: Vec::new(),
+            planned_cases: self.cases.iter().map(|c| c.name.clone()).collect(),
+            active_case: None,
+            complete: false,
+            interrupted: false,
+        };
+        checkpoint(&report)?;
         for case in &self.cases {
-            crate::check_cancelled()?;
-            let report = match experiment(case) {
+            if cancelled() {
+                report.interrupted = true;
+                break;
+            }
+            report.active_case = Some(case.name.clone());
+            checkpoint(&report)?;
+            let result = experiment(case);
+            if result.is_err() && cancelled() {
+                report.interrupted = true;
+                break;
+            }
+            let case_report = match result {
                 Err(error) => CaseReport {
                     name: case.name.clone(),
                     status: Status::InfrastructureFailed,
@@ -217,13 +273,17 @@ impl Suite {
                     }
                 }
             };
-            cases.push(report);
+            report.cases.push(case_report);
+            report.active_case = None;
+            checkpoint(&report)?;
+            if cancelled() {
+                report.interrupted = true;
+                break;
+            }
         }
-        Ok(Report {
-            schema_version: 1,
-            scenario: source,
-            cases,
-        })
+        report.complete = report.cases.len() == report.planned_cases.len();
+        checkpoint(&report)?;
+        Ok(report)
     }
 }
 pub fn run(path: &Path, artifacts: &Path) -> Result<Report> {
@@ -234,20 +294,43 @@ pub fn run(path: &Path, artifacts: &Path) -> Result<Report> {
     fs::create_dir(artifacts)
         .context("artifact directory must be new and its parent must exist")?;
     fs::copy(path, artifacts.join("scenario.json"))?;
-    let report = suite.evaluate(path.display().to_string(), |case| {
-        let mut options = Options::current_exe()?;
-        options.a = case.a;
-        options.b = case.b;
-        options.router_input = case.router_input;
-        options.timeout_seconds = case.timeout_seconds;
-        bench::benchmark(&options)
-    })?;
-    fs::write(
-        artifacts.join("report.json"),
-        serde_json::to_vec_pretty(&report)?,
+    suite.evaluate_checkpointed(
+        path.display().to_string(),
+        |case| {
+            let mut options = Options::current_exe()?;
+            options.a = case.a;
+            options.b = case.b;
+            options.router_input = case.router_input;
+            options.timeout_seconds = case.timeout_seconds;
+            bench::benchmark(&options)
+        },
+        |report| save_checkpoint(artifacts, report),
+        || crate::cancellation().load(Ordering::Relaxed),
+    )
+}
+fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
+    let temporary = path.with_extension("checkpoint.tmp");
+    let result = (|| -> Result<()> {
+        let mut file = fs::File::create(&temporary)?;
+        file.write_all(data)?;
+        file.sync_all()?;
+        fs::rename(&temporary, path)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result.with_context(|| format!("checkpoint {}", path.display()))
+}
+fn save_checkpoint(artifacts: &Path, report: &Report) -> Result<()> {
+    // Each file is replaced atomically. JSON is authoritative if a crash occurs
+    // between these two writes; readers must not assume a multi-file transaction.
+    atomic_write(
+        &artifacts.join("report.json"),
+        &serde_json::to_vec_pretty(report)?,
     )?;
-    fs::write(artifacts.join("junit.xml"), report.junit())?;
-    Ok(report)
+    atomic_write(&artifacts.join("junit.xml"), report.junit().as_bytes())?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -295,5 +378,94 @@ mod tests {
         let mut s = suite();
         s.cases[0].expect[0].pointer = "/bad~2escape".into();
         assert!(s.validate().is_err());
+    }
+    #[test]
+    fn checkpoints_keep_completed_cases_when_the_next_case_is_interrupted() {
+        use std::cell::Cell;
+        let mut suite = suite();
+        suite.cases.push(serde_json::from_value(json!({"name":"second", "a":"random", "b":"random", "router_input":"drop", "timeout_seconds":30, "expect":[{"pointer":"/direct","equals":false}]})).unwrap());
+        let cancelled = Cell::new(false);
+        let mut snapshots = Vec::new();
+        let report = suite
+            .evaluate_checkpointed(
+                "test".into(),
+                |case| {
+                    if case.name == "second" {
+                        cancelled.set(true);
+                        anyhow::bail!("interrupted");
+                    }
+                    Ok(json!({"direct":true}))
+                },
+                |report| {
+                    snapshots.push(serde_json::to_value(report)?);
+                    Ok(())
+                },
+                || cancelled.get(),
+            )
+            .unwrap();
+        assert_eq!(report.schema_version, REPORT_SCHEMA_VERSION);
+        assert_eq!(report.exit_code(), 130);
+        assert_eq!(report.cases.len(), 1);
+        assert_eq!(report.active_case.as_deref(), Some("second"));
+        assert!(!report.complete);
+        assert!(snapshots
+            .iter()
+            .any(|s| s["active_case"] == "second" && s["cases"].as_array().unwrap().len() == 1));
+        assert!(report.junit().contains("type=\"interrupted\""));
+    }
+    #[test]
+    fn checkpoint_io_failure_prevents_starting_an_experiment() {
+        assert!(suite()
+            .evaluate_checkpointed(
+                "test".into(),
+                |_| panic!("must not execute"),
+                |_| anyhow::bail!("disk unavailable"),
+                || false
+            )
+            .is_err());
+    }
+    #[test]
+    fn completed_report_is_distinct_from_in_progress_checkpoints() {
+        let mut snapshots = Vec::new();
+        let report = suite()
+            .evaluate_checkpointed(
+                "test".into(),
+                |_| Ok(json!({"direct":true})),
+                |report| {
+                    snapshots.push(serde_json::to_value(report)?);
+                    Ok(())
+                },
+                || false,
+            )
+            .unwrap();
+        assert!(report.complete);
+        assert!(!report.interrupted);
+        assert_eq!(snapshots[0]["complete"], false);
+        assert_eq!(snapshots[0]["cases"], json!([]));
+        assert_eq!(snapshots.last().unwrap()["complete"], true);
+    }
+    #[test]
+    fn equality_keeps_numeric_representation_and_missing_null_distinct() {
+        let mut s = suite();
+        s.cases[0].expect[0].equals = json!(1);
+        assert_eq!(
+            s.evaluate("test".into(), |_| Ok(json!({"direct":1.0})))
+                .unwrap()
+                .exit_code(),
+            1
+        );
+        s.cases[0].expect[0].equals = Value::Null;
+        assert_eq!(
+            s.evaluate("test".into(), |_| Ok(json!({"direct":null})))
+                .unwrap()
+                .exit_code(),
+            0
+        );
+        assert_eq!(
+            s.evaluate("test".into(), |_| Ok(json!({})))
+                .unwrap()
+                .exit_code(),
+            3
+        );
     }
 }

@@ -34,8 +34,8 @@ stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 mkdir -p -- "$stage/$name"
 install -m 755 -- "$binary" "$stage/$name/natbench"
-cp -- "$repo/LICENSE" "$repo/README.md" "$stage/$name/"
-cp -R -- "$repo/docs" "$repo/scenarios" "$stage/$name/"
+cp -- "$repo/LICENSE" "$repo/README.md" "$repo/CHANGELOG.md" "$stage/$name/"
+cp -R -- "$repo/docs" "$repo/scenarios" "$repo/schemas" "$stage/$name/"
 tar -czf "$archive" -C "$stage" "$name"
 (cd -- "$output" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 printf '%s\n' "$archive"

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/0xprames/natbench/main/schemas/scenario-v1.schema.json",
+  "title": "natbench scenario version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "a",
+        "b",
+        "router_input",
+        "timeout_seconds",
+        "expect"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "a": {
+          "enum": [
+            "preserve",
+            "random",
+            "udp-blocked"
+          ]
+        },
+        "b": {
+          "enum": [
+            "preserve",
+            "random",
+            "udp-blocked"
+          ]
+        },
+        "router_input": {
+          "enum": [
+            "drop",
+            "accept"
+          ]
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3600
+        },
+        "expect": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/expectation"
+          }
+        }
+      }
+    },
+    "expectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pointer",
+        "equals"
+      ],
+      "properties": {
+        "pointer": {
+          "type": "string",
+          "pattern": "^/(?:[^~]|~[01])*$"
+        },
+        "equals": {}
+      }
+    }
+  }
+}
