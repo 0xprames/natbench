@@ -27,6 +27,7 @@ sudo ./target/release/natbench bench --a preserve --b random
 sudo ./target/release/natbench matrix > results.json
 sudo ./target/release/natbench bench --router-input accept
 sudo ./target/release/natbench lifetime
+sudo ./target/release/natbench collision
 sudo ./target/release/natbench run --role a -- ip route
 ```
 
@@ -116,6 +117,16 @@ table is what shows whether the entry survived.
 `udp-blocked` reports `established: false` and null for the three phases.
 This records Linux conntrack's behavior. It does not select a refresh policy.
 
+## Port collision
+
+`collision` puts a second client behind router A and binds both to source port
+10000. Both send to the same observer. A port-preserving NAT gives the second
+flow a different public port and leaves the first entry in place. A
+port-overloading NAT would hand that public port to the second flow and drop
+the first. The result says which one happened. The public port after a later
+packet from the first client is included, because a reissued port is not proof
+that the original entry survived.
+
 ## Bring your own programs
 
 ```rust,no_run
@@ -184,11 +195,12 @@ the upstream GPL-3.0 license.
 
 Implemented: IPv4 UDP observations and traversal, IPv4 TCP relay controls, three
 kernel profiles, asymmetric matrices, generic process execution, JSON results,
-lifecycle tests, and mapping expiry and refresh observations.
+lifecycle tests, mapping expiry and refresh observations, and port-collision
+observations.
 
 Useful next steps: independently configurable mapping/filtering via a userspace
-translator; hairpinning; port collisions; nested NAT; packet loss/delay; real
-STUN clients; application adapters for QUIC and WebRTC.
+translator; hairpinning; nested NAT; packet loss/delay; real STUN clients;
+application adapters for QUIC and WebRTC.
 IPv6, TCP hole punching, and performance measurement are outside the current suite.
 
 ## Development
@@ -203,7 +215,7 @@ sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
 ```
 
 Integration tests exercise all nine profile pairs, shutdown/recovery, the router
-input collision, mapping expiry and refresh, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
+input collision, mapping expiry and refresh, port collision, partial setup failure, process cleanup, and SIGINT/SIGTERM handling. Namespace tests are marked
 ignored by default; the privileged invocation above explicitly enables them.
 Tests require namespace and network administration privileges even when running
 as root in a container. GitHub Actions runs on Ubuntu and uploads the JSON matrix.

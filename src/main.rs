@@ -56,6 +56,13 @@ enum Action {
         #[arg(long, default_value_t = 3)]
         udp_timeout: u64,
     },
+    /// See whether a second flow can take a source port the first flow already holds.
+    Collision {
+        #[arg(long, value_enum, default_value = "preserve")]
+        profile: Profile,
+        #[arg(long, value_enum, default_value = "drop")]
+        router_input: RouterInput,
+    },
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
@@ -106,6 +113,17 @@ fn execute(action: Action) -> Result<i32> {
                 profile,
                 router_input,
                 udp_timeout_seconds: udp_timeout,
+                executable: executable()?,
+            })?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        Action::Collision {
+            profile,
+            router_input,
+        } => {
+            let result = bench::collision(&bench::CollisionOptions {
+                profile,
+                router_input,
                 executable: executable()?,
             })?;
             println!("{}", serde_json::to_string_pretty(&result)?);
