@@ -39,6 +39,9 @@ enum Action {
         scenario: PathBuf,
         #[arg(long)]
         artifacts: PathBuf,
+        /// Capture application namespaces; optional =N bounds packets per role (default 1000).
+        #[arg(long, num_args=0..=1, require_equals=true, default_missing_value="1000", value_parser=clap::value_parser!(u32).range(1..=100_000))]
+        capture: Option<u32>,
     },
     /// Repeat a frozen scenario with fresh fixtures, verdict counts and timing summaries.
     Repeat {
@@ -47,6 +50,9 @@ enum Action {
         artifacts: PathBuf,
         #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u32).range(1..=100))]
         runs: u32,
+        /// Capture each application attempt; optional =N bounds packets per role (default 1000).
+        #[arg(long, num_args=0..=1, require_equals=true, default_missing_value="1000", value_parser=clap::value_parser!(u32).range(1..=100_000))]
+        capture: Option<u32>,
     },
     Bench {
         #[command(flatten)]
@@ -192,8 +198,10 @@ fn execute(action: Action) -> Result<i32> {
         Action::Test {
             scenario,
             artifacts,
+            capture,
         } => {
-            let report = match natbench::scenario::run(&scenario, &artifacts) {
+            let report = match natbench::scenario::run_with_capture(&scenario, &artifacts, capture)
+            {
                 Ok(report) => report,
                 Err(error) => {
                     eprintln!("natbench test: {error:#}");
@@ -210,14 +218,16 @@ fn execute(action: Action) -> Result<i32> {
             scenario,
             artifacts,
             runs,
+            capture,
         } => {
-            let summary = match natbench::repeat::run(&scenario, &artifacts, runs) {
-                Ok(summary) => summary,
-                Err(error) => {
-                    eprintln!("natbench repeat: {error:#}");
-                    return Ok(2);
-                }
-            };
+            let summary =
+                match natbench::repeat::run_with_capture(&scenario, &artifacts, runs, capture) {
+                    Ok(summary) => summary,
+                    Err(error) => {
+                        eprintln!("natbench repeat: {error:#}");
+                        return Ok(2);
+                    }
+                };
             eprint!("{}", summary.readable());
             println!("{}", serde_json::to_string_pretty(&summary)?);
             return Ok(summary.exit_code());

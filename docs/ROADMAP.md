@@ -55,8 +55,9 @@ example exercises NAT, restart and an expected UDP-blocked failure. A standalone
 Rust example proves a persistent UDP client receives fresh application data after
 a service outage behind preserve and random NATs. `natbench repeat` executes a
 frozen scenario with fresh fixtures, per-verdict counts/timings, environment metadata,
-and preserved evidence from interrupted attempts. Timed network events, richer
-adapters, packet capture, the user-facing Actions walkthrough
+and preserved evidence from interrupted attempts. Optional `--capture` adds bounded
+per-role PCAPs and manifests preserved on failure or interruption. Timed network
+events, richer adapters, the user-facing Actions walkthrough
 and outside evaluation remain before the M2 public launch gate.
 
 Exit criteria:

@@ -340,17 +340,25 @@ pub(crate) struct Prepared {
     source: PathBuf,
     pub(crate) input: Vec<u8>,
     suite: PreparedSuite,
+    pub(crate) capture: Option<crate::capture::Options>,
 }
 enum PreparedSuite {
     Builtin(Suite),
     Application(crate::application::Plan),
 }
 pub(crate) fn prepare(path: &Path) -> Result<Prepared> {
+    prepare_with_capture(path, None)
+}
+pub(crate) fn prepare_with_capture(path: &Path, capture_packets: Option<u32>) -> Result<Prepared> {
     let input = fs::read(path).context("read scenario")?;
     let header: Value = serde_json::from_slice(&input).context("parse scenario")?;
     let suite = if matches!(header["schema_version"].as_u64(), Some(2 | 3)) {
         PreparedSuite::Application(crate::application::Plan::prepare(path, &input)?)
     } else {
+        anyhow::ensure!(
+            capture_packets.is_none(),
+            "packet capture requires application input schema 2 or 3"
+        );
         let suite: Suite = serde_json::from_slice(&input).context("parse scenario")?;
         suite.validate()?;
         PreparedSuite::Builtin(suite)
@@ -359,6 +367,9 @@ pub(crate) fn prepare(path: &Path) -> Result<Prepared> {
         source: path.to_owned(),
         input,
         suite,
+        capture: capture_packets
+            .map(crate::capture::Options::new)
+            .transpose()?,
     })
 }
 impl Prepared {
@@ -375,9 +386,17 @@ impl Prepared {
             .context("artifact directory must be new and its parent must exist")?;
         // Save the validated bytes, even if the source file changes during execution.
         fs::write(artifacts.join("scenario.json"), &self.input)?;
+        if let Some(options) = &self.capture {
+            atomic_write(
+                &artifacts.join("capture-config.json"),
+                &serde_json::to_vec_pretty(
+                    &serde_json::json!({"schema_version":1,"kind":"packet_capture_options","options":options}),
+                )?,
+            )?;
+        }
         let source = self.source.display().to_string();
         match &self.suite {
-            PreparedSuite::Application(plan) => plan.run(source, artifacts),
+            PreparedSuite::Application(plan) => plan.run(source, artifacts, self.capture.as_ref()),
             PreparedSuite::Builtin(suite) => suite.evaluate_checkpointed(
                 source,
                 |case| {
@@ -396,6 +415,13 @@ impl Prepared {
 }
 pub fn run(path: &Path, artifacts: &Path) -> Result<Report> {
     prepare(path)?.run(artifacts)
+}
+pub fn run_with_capture(
+    path: &Path,
+    artifacts: &Path,
+    capture_packets: Option<u32>,
+) -> Result<Report> {
+    prepare_with_capture(path, capture_packets)?.run(artifacts)
 }
 pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     let temporary = path.with_extension("checkpoint.tmp");

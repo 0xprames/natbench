@@ -104,6 +104,22 @@ impl Process {
         child.wait()?;
         Ok(())
     }
+    pub(crate) fn interrupt(&self) -> Result<()> {
+        let child = self.0.lock().unwrap();
+        let managed = self
+            .1
+            .as_ref()
+            .context("interrupt requires a managed child")?;
+        if !managed.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        // SAFETY: this owned child remains unreaped while the mutex is held.
+        let result = unsafe { libc::kill(child.id() as i32, libc::SIGINT) };
+        if result < 0 && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH) {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        Ok(())
+    }
 }
 
 /// Owns five network namespaces and every process launched through it.

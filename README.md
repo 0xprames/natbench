@@ -69,6 +69,13 @@ reports keep all verdicts, timing distributions by verdict, and environment meta
 any failed attempt keeps the command nonzero. Timings include fixture setup and
 cleanup. See [repetition reports and limits](docs/REPETITIONS.md).
 
+## Packet evidence
+
+Application scenarios in development builds accept `--capture` to save bounded
+PCAPs from each fixture role alongside process logs and timelines. Install `tcpdump`,
+then add the flag to `test` or `repeat`; `--capture=5000` sets a per-role packet budget.
+See [capture scope, limits and a blocked-UDP example](docs/PACKETS.md).
+
 ## Prerequisite checks
 
 `natbench doctor` checks Linux, effective UID and executable availability without

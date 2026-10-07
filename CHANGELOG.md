@@ -2,6 +2,8 @@
 
 ## 0.2.0 development
 
+- Optional bounded `--capture` for application tests/repetitions, with private per-role
+  PCAPs, manifest/logs, declared readiness and graceful flush before namespace cleanup.
 - `repeat` runs a frozen scenario with fresh fixtures, retains every attempt, and
   checkpoints aggregate JSON/JUnit with verdict counts and timing distributions.
 - Repetition reports record natbench/kernel versions, OS, architecture and caller UID;
