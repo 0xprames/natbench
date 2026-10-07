@@ -18,9 +18,11 @@ pub struct Environment {
     kernel_release: Option<String>,
     effective_uid: u32,
     recorded_at_unix_seconds: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    packet_capture: Option<crate::capture::Options>,
 }
 impl Environment {
-    fn current() -> Result<Self> {
+    fn current(capture: Option<&crate::capture::Options>) -> Result<Self> {
         Ok(Self {
             natbench_version: env!("CARGO_PKG_VERSION"),
             os: std::env::consts::OS,
@@ -31,6 +33,7 @@ impl Environment {
             // SAFETY: geteuid has no arguments or memory-safety requirements.
             effective_uid: unsafe { libc::geteuid() },
             recorded_at_unix_seconds: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            packet_capture: capture.cloned(),
         })
     }
 }
@@ -291,20 +294,24 @@ fn checkpoint(directory: &Path, names: &[String]) -> Option<Report> {
             .is_none_or(|name| names.get(report.cases.len()) == Some(name));
     valid.then_some(report)
 }
+struct FrozenInput<'a> {
+    bytes: &'a [u8],
+    capture: Option<&'a crate::capture::Options>,
+}
 fn execute(
     source: String,
     names: Vec<String>,
-    input: &[u8],
+    input: FrozenInput<'_>,
     runs: u32,
     artifacts: &Path,
     mut run: impl FnMut(&Path) -> Result<Report>,
     cancelled: impl Fn() -> bool,
 ) -> Result<Summary> {
     anyhow::ensure!((1..=100).contains(&runs), "runs must be 1–100");
-    let environment = Environment::current()?;
+    let environment = Environment::current(input.capture)?;
     fs::create_dir(artifacts)
         .context("artifact directory must be new and its parent must exist")?;
-    fs::write(artifacts.join("scenario.json"), input)?;
+    fs::write(artifacts.join("scenario.json"), input.bytes)?;
     let mut summary = Summary {
         schema_version: 1,
         kind: "repetition_report",
@@ -401,12 +408,23 @@ fn execute(
 }
 /// Validate once and run every repetition with the same captured input and fresh fixtures.
 pub fn run(path: &Path, artifacts: &Path, runs: u32) -> Result<Summary> {
+    run_with_capture(path, artifacts, runs, None)
+}
+pub fn run_with_capture(
+    path: &Path,
+    artifacts: &Path,
+    runs: u32,
+    capture_packets: Option<u32>,
+) -> Result<Summary> {
     anyhow::ensure!((1..=100).contains(&runs), "runs must be 1–100");
-    let prepared = scenario::prepare(path)?;
+    let prepared = scenario::prepare_with_capture(path, capture_packets)?;
     execute(
         path.display().to_string(),
         prepared.names(),
-        &prepared.input,
+        FrozenInput {
+            bytes: &prepared.input,
+            capture: prepared.capture.as_ref(),
+        },
         runs,
         artifacts,
         |directory| prepared.run(directory),
@@ -418,6 +436,12 @@ pub fn run(path: &Path, artifacts: &Path, runs: u32) -> Result<Summary> {
 mod tests {
     use super::*;
     use std::{cell::Cell, path::PathBuf};
+    fn input(bytes: &[u8]) -> FrozenInput<'_> {
+        FrozenInput {
+            bytes,
+            capture: None,
+        }
+    }
     struct Temp(PathBuf);
     impl Temp {
         fn new(label: &str) -> Self {
@@ -488,7 +512,7 @@ mod tests {
         let summary = execute(
             "test".into(),
             names(),
-            b"frozen input",
+            input(b"frozen input"),
             3,
             &root.0.join("artifacts"),
             |_| {
@@ -545,7 +569,7 @@ mod tests {
         let summary = execute(
             "test".into(),
             names(),
-            b"input",
+            input(b"input"),
             3,
             &artifacts,
             |_| {
@@ -586,7 +610,7 @@ mod tests {
         let summary = execute(
             "test".into(),
             names(),
-            b"input",
+            input(b"input"),
             2,
             &artifacts,
             |directory| {

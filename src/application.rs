@@ -331,6 +331,8 @@ struct Active {
     expected_completion: bool,
 }
 struct Runner<'a> {
+    // Capture must flush before Lab tears down processes and namespaces on any return path.
+    capture: Option<crate::capture::Group>,
     lab: Lab,
     case: &'a Case,
     base: &'a Path,
@@ -460,6 +462,9 @@ impl<'a> Runner<'a> {
         self.event(name, "stopped")
     }
     fn check_services(&self) -> Result<()> {
+        if let Some(capture) = &self.capture {
+            capture.check()?;
+        }
         for (name, active) in &self.active {
             if active.expected_completion {
                 continue;
@@ -560,6 +565,11 @@ impl<'a> Runner<'a> {
     }
     fn execute(mut self) -> Result<CaseReport> {
         let mut messages = Vec::new();
+        if self.capture.is_some() {
+            self.record(
+                json!({"elapsed_ms":self.started.elapsed().as_millis(), "state":"capture_ready"}),
+            )?;
+        }
         for (index, step) in self.case.steps.iter().enumerate() {
             let step_result = (|| -> Result<()> {
                 crate::check_cancelled()?;
@@ -648,6 +658,18 @@ impl<'a> Runner<'a> {
         for name in names {
             self.stop(&name)?;
         }
+        let capture = self
+            .capture
+            .as_mut()
+            .map(|capture| capture.finish())
+            .transpose()?;
+        if let Some(capture) = &capture {
+            self.record(json!({"elapsed_ms":self.started.elapsed().as_millis(), "state":"capture_finished"}))?;
+            anyhow::ensure!(
+                capture.complete,
+                "packet capture did not finish cleanly; see capture.json and tcpdump logs"
+            );
+        }
         Ok(CaseReport {
             name: self.case.name.clone(),
             status: if messages.is_empty() {
@@ -657,7 +679,7 @@ impl<'a> Runner<'a> {
             },
             messages,
             observation: Some(
-                json!({"schema_version":1,"experiment":"application","events":self.events,"logs_directory":self.artifacts.file_name().unwrap().to_string_lossy()}),
+                json!({"schema_version":1,"experiment":"application","events":self.events,"logs_directory":self.artifacts.file_name().unwrap().to_string_lossy(),"packet_capture":capture}),
             ),
             elapsed_seconds: None,
         })
@@ -682,7 +704,12 @@ impl Plan {
             .map(|case| case.name.clone())
             .collect()
     }
-    pub(crate) fn run(&self, source: String, artifacts: &Path) -> Result<Report> {
+    pub(crate) fn run(
+        &self,
+        source: String,
+        artifacts: &Path,
+        capture_options: Option<&crate::capture::Options>,
+    ) -> Result<Report> {
         crate::scenario::run_application_cases(
             source,
             self.names(),
@@ -691,8 +718,14 @@ impl Plan {
                 let directory = artifacts.join(format!("case-{index:03}"));
                 fs::create_dir(&directory)?;
                 let timeline = File::create(directory.join("timeline.jsonl"))?;
+                let mut lab = Lab::create(case.a, case.b, case.router_input)?;
+                let started = Instant::now();
+                let capture = capture_options
+                    .map(|options| crate::capture::Group::start(&mut lab, &directory, options))
+                    .transpose()?;
                 let runner = Runner {
-                    lab: Lab::create(case.a, case.b, case.router_input)?,
+                    capture,
+                    lab,
                     case,
                     base: &self.base,
                     artifacts: &directory,
@@ -700,7 +733,7 @@ impl Plan {
                     generation: BTreeMap::new(),
                     events: Vec::new(),
                     timeline,
-                    started: Instant::now(),
+                    started,
                 };
                 runner.execute()
             },

@@ -332,6 +332,39 @@
         "recorded_at_unix_seconds": {
           "type": "integer",
           "minimum": 0
+        },
+        "packet_capture": {
+          "type": "object",
+          "required": [
+            "packets_per_role",
+            "snaplen_bytes",
+            "roles"
+          ],
+          "properties": {
+            "packets_per_role": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "snaplen_bytes": {
+              "const": 256
+            },
+            "roles": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "a",
+                  "b",
+                  "ra",
+                  "rb",
+                  "wan"
+                ]
+              }
+            }
+          }
         }
       }
     }

@@ -108,6 +108,7 @@ pub fn inspect(probe: bool) -> Report {
         ("sysctl", true, "procps"),
         ("conntrack", false, "conntrack"),
         ("tc", false, "iproute2"),
+        ("tcpdump", false, "tcpdump"),
     ] {
         checks.push(check(
             tool,

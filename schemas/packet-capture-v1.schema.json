@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/0xprames/natbench/main/schemas/packet-capture-v1.schema.json",
+  "title": "natbench packet capture manifest version 1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "options",
+    "complete",
+    "files",
+    "error"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "packet_capture"
+    },
+    "options": {
+      "$ref": "#/$defs/options"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "files": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "$defs": {
+    "options": {
+      "type": "object",
+      "required": [
+        "packets_per_role",
+        "snaplen_bytes",
+        "roles"
+      ],
+      "properties": {
+        "packets_per_role": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "snaplen_bytes": {
+          "const": 256
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "a",
+              "b",
+              "ra",
+              "rb",
+              "wan"
+            ]
+          }
+        }
+      }
+    },
+    "file": {
+      "type": "object",
+      "required": [
+        "role",
+        "pcap_file",
+        "stderr_file",
+        "complete",
+        "forced_stop",
+        "exit_code",
+        "packets",
+        "truncated_packets",
+        "link_type",
+        "kernel_dropped_packets",
+        "packet_limit_reached",
+        "error"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "a",
+            "b",
+            "ra",
+            "rb",
+            "wan"
+          ]
+        },
+        "pcap_file": {
+          "type": "string"
+        },
+        "stderr_file": {
+          "type": "string"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "forced_stop": {
+          "type": "boolean"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 255
+        },
+        "packets": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "truncated_packets": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "link_type": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "kernel_dropped_packets": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "packet_limit_reached": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

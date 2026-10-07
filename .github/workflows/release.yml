@@ -24,7 +24,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
-      - run: sudo apt-get update && sudo apt-get install -y iproute2 nftables conntrack build-essential cmake
+      - run: sudo apt-get update && sudo apt-get install -y iproute2 nftables conntrack tcpdump build-essential cmake
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
@@ -60,11 +60,19 @@ jobs:
           "$binary" --help
           sudo "$binary" doctor --probe --json > doctor.json
           sudo "$binary" test "$scenario" --artifacts packaged-scenario > packaged-report.json
-          sudo "$binary" test examples/udp-echo/scenario.json --artifacts application-artifacts > application-report.json
+          sudo "$binary" test examples/udp-echo/scenario.json --capture --artifacts application-artifacts > application-report.json
           bundle=$(dirname "$binary")
           rustc --edition 2021 -D warnings "$bundle/examples/udp-recovery/main.rs" -o "$bundle/examples/udp-recovery/udp-recovery"
           sudo "$binary" test "$bundle/examples/udp-recovery/scenario.json" --artifacts recovery-artifacts > recovery-report.json
-          sudo "$binary" repeat "$bundle/examples/udp-recovery/scenario.json" --runs 2 --artifacts repetition-artifacts > repetition-report.json
+          sudo "$binary" repeat "$bundle/examples/udp-recovery/scenario.json" --runs 2 --capture --artifacts repetition-artifacts > repetition-report.json
+      - name: Allow the runner to read private packet evidence
+        if: always()
+        run: |
+          for directory in application-artifacts repetition-artifacts; do
+            if [[ -d "$directory" ]]; then
+              sudo chown -R -- "$(id -u):$(id -g)" "$directory"
+            fi
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.target }}

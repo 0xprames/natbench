@@ -8,7 +8,8 @@ configuration, process lifecycle, readiness checks, deadlines and artifacts.
 The M2 development build supports sequential start/run/stop/restart steps,
 stdout or TCP readiness, exit-code and stdout assertions, per-process logs and a
 JSONL timeline. Schema 3 adds bounded output/exit waits and explicit downtime.
-Timed network events, structured application events/stdin, packet capture,
+Optional [`--capture`](PACKETS.md) saves bounded packet evidence from every fixture role.
+Timed network events, structured application events/stdin,
 repeated-run statistics and outside adoption remain milestone work.
 
 ## Independent Go UDP example

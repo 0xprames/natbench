@@ -124,6 +124,14 @@ their prior exit semantics.
 
 ## Other JSON and release migration
 
+Application packet manifests use [capture schema 1](../schemas/packet-capture-v1.schema.json),
+kind `packet_capture`. `capture-config.json` uses schema 1, kind
+`packet_capture_options`, and the same nested options shape. Completed raw application
+observations may embed a manifest under `packet_capture`; absent capture is null.
+Repetition environment metadata may also include capture options. These additions
+preserve input versions 1–3, suite report 2 and repetition report 1. See
+[packet evidence](PACKETS.md) for scope, completion meaning and retained partial files.
+
 `natbench repeat` writes [repetition report version 1](../schemas/repetition-report-v1.schema.json),
 identified by `kind: "repetition_report"`. It is a separate document from the suite
 reports retained under each `run-001`, `run-002`, etc. directory. Scenario inputs

@@ -3,6 +3,7 @@
 //! Network fixtures and measured NAT experiments for Linux.
 mod application;
 pub mod bench;
+mod capture;
 pub mod doctor;
 pub mod lab;
 mod quic;

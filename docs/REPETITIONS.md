@@ -97,3 +97,7 @@ versions and host load need their own recorded context for comparisons. Programs
 inherit the normal scenario execution context described in [application scenarios](APPLICATIONS.md).
 The same captured scenario can produce different timings or allocation observations
 on different kernels and machines.
+
+Application repeats accept [`--capture`](PACKETS.md) or `--capture=N` for bounded
+packet evidence in every attempted case. `environment.packet_capture` records the
+options. Capture startup, shutdown and validation contribute to case times.
