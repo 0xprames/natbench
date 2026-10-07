@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 development
+
+- `compare` runs matched direct reliable-stream workloads through external executable
+  adapters, rotating order and retaining per-attempt JSON/JUnit/logs/timelines/PCAPs.
+- Independent pinned iroh/Quinn adapters verify fresh message and bulk payload bytes;
+  reports keep conditional application timings/goodput, raw samples and build/settings
+  metadata. Failures, unsupported coverage, invalid output and interruption stay distinct.
+- Versioned request/event/bootstrap and comparison schemas support generic external
+  implementations without linking their transport libraries into the core.
+
 ## 0.2.0-alpha.1
 
 Application runner evaluation preview; M2 stable launch awaits planned transport

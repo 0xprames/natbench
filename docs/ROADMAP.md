@@ -62,9 +62,11 @@ per-role PCAPs and manifests preserved on failure or interruption. The
 failure/correction demo are ready for evaluation in v0.2.0-alpha.1. The
 [contributor guide](../CONTRIBUTING.md) and [evaluation checklist](EVALUATION.md)
 support this preview. The [transport comparison plan](TRANSPORT_COMPARISONS.md)
-moves iroh, a plain QUIC reference and generic external adapters into M2. Normalized
-application metrics, matched comparisons and real local-relay/traversal cases remain
-to implement; the alpha does not claim these features. Outside evaluation remains
+moves iroh, a plain QUIC reference and generic external adapters into M2. The direct-stream
+[comparison runner and iroh/Quinn adapters](ADAPTERS.md) now implement normalized
+application timings, verified bulk goodput, rotated runs and preserved evidence in
+development builds. Real local-relay/traversal cases remain before the M2 comparison
+gate; the alpha does not claim the new comparison features. Outside evaluation remains
 a launch check. Composable network changes follow in M3; broader protocol coverage
 follows in M4.
 

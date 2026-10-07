@@ -1,0 +1,21 @@
+[package]
+name = "natbench-transport-adapters"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+license = "MIT"
+description = "Standalone iroh and Quinn adapters for matched natbench workloads"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+iroh = { version = "=1.3.0", default-features = false, features = ["tls-ring"] }
+natbench-transport-protocol = { path = "../../crates/transport-protocol" }
+quinn = { version = "=0.11.12", default-features = false, features = ["rustls-ring", "runtime-tokio"] }
+rcgen = { version = "=0.14.10", default-features = false, features = ["ring"] }
+rustls = { version = "=0.23.45", default-features = false, features = ["ring", "std"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+
+[build-dependencies]
+sha2 = "0.10"

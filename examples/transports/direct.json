@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "kind": "transport_comparison",
+  "adapters": [
+    {
+      "name": "iroh",
+      "argv": [
+        "./target/release/natbench-transport-adapters",
+        "--transport",
+        "iroh"
+      ]
+    },
+    {
+      "name": "quinn",
+      "argv": [
+        "./target/release/natbench-transport-adapters",
+        "--transport",
+        "quinn"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "name": "direct stream behind preserve NAT",
+      "profile": "preserve",
+      "deadline_ms": 5000,
+      "workload": {
+        "payload_bytes": 128,
+        "warmup_messages": 3,
+        "measured_messages": 10,
+        "bulk_bytes": 1048576
+      }
+    },
+    {
+      "name": "direct stream behind random NAT",
+      "profile": "random",
+      "deadline_ms": 5000,
+      "workload": {
+        "payload_bytes": 128,
+        "warmup_messages": 3,
+        "measured_messages": 10,
+        "bulk_bytes": 1048576
+      }
+    }
+  ]
+}

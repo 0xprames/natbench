@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/transport-peer-v1.schema.json",
+  "title": "Opaque transport peer bootstrap version 1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "transport_peer"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{32}$"
+    },
+    "implementation": {
+      "$ref": "#/$defs/implementation"
+    },
+    "details": {}
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "implementation",
+    "details"
+  ],
+  "additionalProperties": true,
+  "$defs": {
+    "implementation": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "settings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "settings"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

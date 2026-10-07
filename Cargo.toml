@@ -1,9 +1,9 @@
 [package]
 name = "natbench"
-version = "0.2.0-alpha.1"
+version = "0.2.0-dev"
 edition = "2021"
 license = "MIT"
-description = "Measure NAT behavior, UDP traversal, and relay recovery in isolated Linux networks"
+description = "Test connectivity and compare transport workloads in isolated Linux networks"
 repository = "https://github.com/0xprames/natbench"
 readme = "README.md"
 
@@ -11,6 +11,7 @@ readme = "README.md"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 libc = "0.2"
+natbench-transport-protocol = { path = "crates/transport-protocol" }
 quinn = { version = "0.11.12", default-features = false, features = ["rustls-ring", "runtime-tokio"] }
 rcgen = { version = "0.14.10", default-features = false, features = ["ring", "pem"] }
 rustls = { version = "0.23.45", default-features = false, features = ["ring", "std"] }

@@ -536,7 +536,7 @@ impl<'a> Runner<'a> {
             }
             thread::sleep(Duration::from_millis(25));
         };
-        self.event(name, "exited")?;
+        self.record(json!({"elapsed_ms":self.started.elapsed().as_millis(),"process":name,"state":"exited","exit_code":status.code()}))?;
         if status.code() != Some(expect_exit) {
             messages.push(format!(
                 "{name}: expected exit {expect_exit}, observed {status}"

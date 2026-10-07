@@ -4,6 +4,7 @@
 mod application;
 pub mod bench;
 mod capture;
+pub mod compare;
 pub mod doctor;
 pub mod lab;
 mod quic;

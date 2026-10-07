@@ -72,3 +72,68 @@ fn suite_report_two_retains_older_cases_without_optional_timing() {
     assert_eq!(report.cases[0].elapsed_seconds, None);
     assert_eq!(report.exit_code(), 0);
 }
+
+#[test]
+fn transport_inputs_are_closed_and_adapter_outputs_allow_additive_metadata() {
+    use natbench_transport_protocol::{
+        Event, EventData, Implementation, Measurement, Request, Role, Workload,
+    };
+    let input: Value =
+        serde_json::from_str(include_str!("../examples/transports/direct.json")).unwrap();
+    validator(include_str!(
+        "../schemas/transport-comparison-v1.schema.json"
+    ))
+    .validate(&input)
+    .unwrap();
+    let request = Request {
+        schema_version: 1,
+        kind: "transport_request".into(),
+        run_id: "0123456789abcdef0123456789abcdef".into(),
+        role: Role::Client,
+        listen_address: "0.0.0.0:0".parse().unwrap(),
+        peer_address: "198.18.0.1:9443".parse().unwrap(),
+        peer_file: "/tmp/peer.json".into(),
+        deadline_ms: 5000,
+        workload: Workload {
+            payload_bytes: 128,
+            warmup_messages: 1,
+            measured_messages: 2,
+            bulk_bytes: 1024,
+        },
+    };
+    let mut request_json = serde_json::to_value(&request).unwrap();
+    let schema = validator(include_str!("../schemas/transport-request-v1.schema.json"));
+    schema.validate(&request_json).unwrap();
+    request_json["workload"]["typo"] = json!(true);
+    assert!(!schema.is_valid(&request_json));
+    assert!(serde_json::from_value::<Request>(request_json).is_err());
+    let event = Event::new(
+        &request,
+        Implementation {
+            name: "reference".into(),
+            version: "1".into(),
+            settings: Default::default(),
+        },
+        EventData::Completed {
+            measurement: Measurement {
+                workload: request.workload.clone(),
+                path: "direct".into(),
+                path_evidence: Value::Null,
+                first_data_seconds: 0.1,
+                message_rtt_seconds: vec![0.01; 2],
+                bulk_verified_bytes: 1024,
+                bulk_seconds: 0.1,
+            },
+        },
+    );
+    let mut output = serde_json::to_value(event).unwrap();
+    output["future"] = json!({"metadata":true});
+    output["measurement"]["workload"]["future"] = json!(true);
+    validator(include_str!("../schemas/transport-event-v1.schema.json"))
+        .validate(&output)
+        .unwrap();
+    serde_json::from_value::<Event>(output)
+        .unwrap()
+        .validate(&request)
+        .unwrap();
+}

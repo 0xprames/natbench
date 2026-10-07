@@ -3,8 +3,8 @@
 M2's stable v0.2.0 launch requires at least one outside project or maintainer to
 evaluate the workflow. v0.2.0-alpha.1 is a preview for collecting that evidence;
 publication alone does not satisfy the gate. The expanded M2 deliverable also
-requires [matched transport comparisons](TRANSPORT_COMPARISONS.md); those adapters
-and normalized metrics are planned, not included in this alpha.
+requires [matched transport comparisons](TRANSPORT_COMPARISONS.md); the first direct-stream cohort is available in development builds. This alpha
+predates its adapters and normalized metrics.
 
 1. Follow [getting started](GETTING_STARTED.md) on a fresh Linux host. Record the
    natbench version, architecture, kernel and active doctor result. Confirm that

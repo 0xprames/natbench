@@ -7,7 +7,10 @@ use natbench::{
 use std::{path::PathBuf, sync::atomic::Ordering};
 
 #[derive(Parser)]
-#[command(version, about = "Measure NAT behavior in isolated Linux networks")]
+#[command(
+    version,
+    about = "Test connectivity and compare transports in isolated Linux networks"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Action,
@@ -51,6 +54,16 @@ enum Action {
         #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u32).range(1..=100))]
         runs: u32,
         /// Capture each application attempt; optional =N bounds packets per role (default 1000).
+        #[arg(long, num_args=0..=1, require_equals=true, default_missing_value="1000", value_parser=clap::value_parser!(u32).range(1..=100_000))]
+        capture: Option<u32>,
+    },
+    /// Compare executable transport adapters with matched direct stream workloads.
+    Compare {
+        comparison: PathBuf,
+        #[arg(long)]
+        artifacts: PathBuf,
+        #[arg(long, default_value_t=4, value_parser=clap::value_parser!(u32).range(1..=100))]
+        runs: u32,
         #[arg(long, num_args=0..=1, require_equals=true, default_missing_value="1000", value_parser=clap::value_parser!(u32).range(1..=100_000))]
         capture: Option<u32>,
     },
@@ -182,6 +195,23 @@ enum Action {
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
+        Action::Compare {
+            comparison,
+            artifacts,
+            runs,
+            capture,
+        } => {
+            let report = match natbench::compare::run(&comparison, &artifacts, runs, capture) {
+                Ok(report) => report,
+                Err(error) => {
+                    eprintln!("natbench compare: {error:#}");
+                    return Ok(2);
+                }
+            };
+            eprint!("{}", report.readable());
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(report.exit_code());
+        }
         Action::Doctor { probe, json } => {
             let report = natbench::doctor::inspect(probe);
             if json {
