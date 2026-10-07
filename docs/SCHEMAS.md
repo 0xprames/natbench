@@ -79,7 +79,7 @@ and `infrastructure_failed`. `observation` contains the raw experiment JSON when
 available and is null after a fixture error. Cancellation is suite-level state;
 the active case does not acquire a misleading infrastructure-failure verdict.
 
-Development builds add optional `elapsed_seconds` on completed cases and a JUnit
+The v0.2.0-alpha.1 preview adds optional `elapsed_seconds` on completed cases and a JUnit
 `time` attribute. It measures the case's monotonic wall time from fixture setup
 through teardown, excluding suite checkpoint writes. Older version 2 reports may
 omit it. Cases interrupted before a completed verdict do not provide this sample.

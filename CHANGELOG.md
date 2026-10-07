@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.2.0 development
+## 0.2.0-alpha.1
+
+Application runner evaluation preview; M2 stable launch awaits planned transport
+comparison adapters/metrics and outside evaluation.
+
+- Binary/source walkthrough reproduces a failed delivery requirement, diagnoses it
+  from reports/logs/PCAPs, and verifies the corrected network scenario repeatedly.
+- Copyable GitHub Actions workflow pins the preview, verifies download checksums,
+  and preserves evidence on failure; contributor and outside evaluation guides.
+- Release archives include the demo scenarios, verifier and Actions example; both
+  native architectures exercise the extracted diagnostic demo before publication.
 
 - Optional bounded `--capture` for application tests/repetitions, with private per-role
   PCAPs, manifest/logs, declared readiness and graceful flush before namespace cleanup.

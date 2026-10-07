@@ -1,6 +1,6 @@
 [package]
 name = "natbench"
-version = "0.2.0-dev"
+version = "0.2.0-alpha.1"
 edition = "2021"
 license = "MIT"
 description = "Measure NAT behavior, UDP traversal, and relay recovery in isolated Linux networks"

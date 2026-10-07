@@ -30,10 +30,11 @@ jobs:
       - run: sudo ./target/debug/natbench test examples/udp-echo/scenario.json --capture --artifacts application-artifacts
       - run: sudo ./target/debug/natbench test examples/udp-recovery/scenario.json --artifacts recovery-artifacts
       - run: sudo ./target/debug/natbench repeat examples/udp-recovery/scenario.json --runs 2 --capture --artifacts repetition-artifacts
+      - run: sudo scripts/check-application-demo.sh ./target/debug/natbench diagnostic-demo-artifacts
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -50,3 +51,4 @@ jobs:
             application-artifacts/
             recovery-artifacts/
             repetition-artifacts/
+            diagnostic-demo-artifacts/

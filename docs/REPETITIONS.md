@@ -1,6 +1,6 @@
 # Repeated scenarios and timing summaries
 
-Development builds accept `natbench repeat SCENARIO --runs N --artifacts DIRECTORY`.
+The v0.2.0-alpha.1 preview accepts `natbench repeat SCENARIO --runs N --artifacts DIRECTORY`.
 The default is five runs; 1–100 are allowed. Built-in input version 1 and application
 versions 2 and 3 work with the same command. Validate prerequisites with `doctor`
 before using the privileged Linux fixture.

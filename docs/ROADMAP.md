@@ -2,8 +2,9 @@
 
 natbench will become a connectivity testbed for real applications: run programs
 behind controlled networks, verify their connection and recovery behavior, and
-save evidence that explains failures. Rust is the implementation language; tests
-must work with programs written in any language.
+save evidence that explains failures, and compare real transport implementations
+under the same workloads and network conditions. Rust is the implementation
+language; tests must work with programs written in any language.
 
 This schedule starts October 6, 2026. Dates are target completion dates in the
 maintainer's America/New_York time zone. Exit criteria determine release readiness.
@@ -15,9 +16,9 @@ External adoption and interoperability are dependencies, not guaranteed dates.
 | Milestone | Target date | Release | Outcome |
 | --- | --- | --- | --- |
 | M1 CI foundations and distribution | October 16, 2026 | v0.1.1 | Install a binary, run declared expectations, retain CI evidence |
-| M2 Application scenario runner | October 30, 2026 | v0.2.0 | First public adoption launch: test real programs without editing natbench |
-| M3 Composable networks and recovery events | November 13, 2026 | v0.3.0 | Combine conditions and timed network changes in the same scenario |
-| M4 Protocol interoperability | November 27, 2026 | v0.4.0 | Exercise actual ICE, TURN and P2P traversal across implementations |
+| M2 Application runner and transport comparison | October 30, 2026 | v0.2.0 | Compare iroh and reference/custom transports with verified application data |
+| M3 Composable networks and recovery events | November 13, 2026 | v0.3.0 | Compare transport behavior under combined impairments and network changes |
+| M4 Broader transport coverage and interoperability | November 27, 2026 | v0.4.0 | Add WebRTC/libp2p/TURN comparisons and compatible protocol interoperability |
 | M5 Portable real network diagnosis | December 11, 2026 | v0.5.0 | Collect bounded, understandable evidence from a user's real network |
 
 ## M1 CI foundations and distribution
@@ -43,9 +44,9 @@ coverage and tested x86-64/ARM64 archives. M1 is complete.
 
 Initial implementation: `natbench test` executes a JSON suite against the existing
 built-in benchmark. This is the first foundation slice, not the application runner.
-Process logs, packet captures and report comparison remain M2 work.
+The application runner, logs, packet captures and repeated reports followed in M2.
 
-## M2 Application scenario runner and first public launch
+## M2 Application runner, transport comparison and first public launch
 
 Current slices: input schema 2 adds foreground application commands, declared
 stdout/TCP readiness, deadlines, sequential stop/restart, exit/stdout assertions,
@@ -56,9 +57,16 @@ Rust example proves a persistent UDP client receives fresh application data afte
 a service outage behind preserve and random NATs. `natbench repeat` executes a
 frozen scenario with fresh fixtures, per-verdict counts/timings, environment metadata,
 and preserved evidence from interrupted attempts. Optional `--capture` adds bounded
-per-role PCAPs and manifests preserved on failure or interruption. Timed network
-events, richer adapters, the user-facing Actions walkthrough
-and outside evaluation remain before the M2 public launch gate.
+per-role PCAPs and manifests preserved on failure or interruption. The
+[adoption walkthrough](GETTING_STARTED.md), copyable Actions workflow and tested
+failure/correction demo are ready for evaluation in v0.2.0-alpha.1. The
+[contributor guide](../CONTRIBUTING.md) and [evaluation checklist](EVALUATION.md)
+support this preview. The [transport comparison plan](TRANSPORT_COMPARISONS.md)
+moves iroh, a plain QUIC reference and generic external adapters into M2. Normalized
+application metrics, matched comparisons and real local-relay/traversal cases remain
+to implement; the alpha does not claim these features. Outside evaluation remains
+a launch check. Composable network changes follow in M3; broader protocol coverage
+follows in M4.
 
 Exit criteria:
 
@@ -74,9 +82,20 @@ Exit criteria:
   natbench source. At least one outside project or maintainer evaluates the workflow.
 - A documented GitHub Actions example takes a new user from install to a saved report.
 - Repeated runs report counts and timing distributions, with environment metadata.
+- A versioned executable-adapter/workload contract keeps transport libraries outside
+  the core and accepts separately built custom implementations under a generic label.
+- Iroh and a plain QUIC reference exchange the same verified payloads in matched
+  direct-path tests. Actual local iroh relay/traversal cases demonstrate automatic
+  versus relayed paths, blocked UDP and relay interruption with application evidence.
+- Readable and versioned comparison results preserve attempts, failure phases, path
+  policy, implementation versions, first-data timing, application RTT and verified
+  goodput. Whole-case wall times are not labeled transport performance.
+- Complete-stack comparisons expose supported capabilities separately from direct
+  performance cohorts; unsupported traversal is never silently supplied by the lab.
 
 Launch gate: another developer can reproduce a connectivity failure, identify its
-phase from the artifacts, and use the test as a regression check. Release notes
+phase from the artifacts, compare transport behavior with the same workload, and
+use the test as a regression check. Release notes
 include supported scenarios, an installation walkthrough, and explicit limitations.
 Publish v0.2.0 only after this gate. External outreach requires a separately
 approved message; issue/release preparation does not authorize sending messages.
@@ -94,11 +113,15 @@ Exit criteria:
 - Record allocation/impairment seeds where supported, observed behavior, kernel and
   versions. Seeds do not imply identical wall-clock timing across hosts.
 - Curated fast CI cases plus budgeted extended matrices avoid uncontrolled combinations.
+- The same transport workloads exercise composed conditions; recovery results identify
+  resumed versus recreated sessions and verified delivery after a network change.
 
-## M4 Protocol interoperability
+## M4 Broader transport coverage and protocol interoperability
 
 Exit criteria:
 
+- Expand the shared-workload comparison to real WebRTC/libp2p implementations; keep
+  cross-stack performance comparison separate from compatible wire interoperability.
 - WebRTC gathers and selects candidates through its normal ICE machinery; tests cover
   direct connections, forced TURN fallback and ICE restart. No hidden preparatory punch.
 - A separately installed coturn runs in the fixture, including authenticated allocation
@@ -131,8 +154,11 @@ Exit criteria:
 1. Review progress weekly against the current gate and record remaining blockers in
    milestone issues. This plan does not create a recurring automation.
 2. Deliver small reviewed pull requests with their scenario-level validation evidence.
-3. Produce a release candidate when a milestone gate is satisfied; exercise install,
-   quickstart and CI on a fresh Linux environment before tagging a stable release.
+3. Publish clearly labeled alpha previews for outside evaluation when the
+   implementation and install/CI walkthrough pass; previews do not satisfy an
+   external adoption gate. Produce a release candidate when a milestone gate is
+   satisfied; exercise install, quickstart and CI on a fresh Linux environment
+   before tagging a stable release.
 4. Publish binaries, checksums, schema notes and a runnable example with each tag.
 5. For v0.2.0, prepare a concise demo of an actual app failure and recovery plus a
    contributor guide. Broader launch follows successful outside evaluation.
