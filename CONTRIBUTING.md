@@ -19,7 +19,10 @@ Install a current stable Rust toolchain, Go (CI uses 1.24), and Linux tools:
 sudo apt-get install -y iproute2 nftables conntrack tcpdump
 go build -o examples/udp-echo/udp-echo examples/udp-echo/main.go
 rustc --edition 2021 -D warnings examples/udp-recovery/main.rs -o examples/udp-recovery/udp-recovery
+cargo build --release --locked --manifest-path examples/transports/Cargo.toml
 cargo fmt --check
+cargo fmt --check --manifest-path examples/transports/Cargo.toml
+cargo test --locked --manifest-path crates/transport-protocol/Cargo.toml
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \

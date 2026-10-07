@@ -22,7 +22,7 @@ pub struct Environment {
     packet_capture: Option<crate::capture::Options>,
 }
 impl Environment {
-    fn current(capture: Option<&crate::capture::Options>) -> Result<Self> {
+    pub(crate) fn current(capture: Option<&crate::capture::Options>) -> Result<Self> {
         Ok(Self {
             natbench_version: env!("CARGO_PKG_VERSION"),
             os: std::env::consts::OS,
@@ -47,14 +47,14 @@ pub struct Timing {
     pub p95: f64,
 }
 impl Timing {
-    fn from_samples(mut samples: Vec<f64>) -> Option<Self> {
+    pub(crate) fn from_samples(mut samples: Vec<f64>) -> Option<Self> {
         if samples.is_empty() {
             return None;
         }
         samples.sort_by(f64::total_cmp);
         let length = samples.len();
         let median = if length.is_multiple_of(2) {
-            (samples[length / 2 - 1] + samples[length / 2]) / 2.
+            samples[length / 2 - 1] / 2. + samples[length / 2] / 2.
         } else {
             samples[length / 2]
         };
@@ -62,7 +62,7 @@ impl Timing {
             samples: length,
             min: samples[0],
             max: samples[length - 1],
-            mean: samples.iter().sum::<f64>() / length as f64,
+            mean: samples.iter().map(|sample| sample / length as f64).sum(),
             median,
             // Nearest-rank percentile, including the maximum for fewer than 20 samples.
             p95: samples[(length * 95).div_ceil(100) - 1],

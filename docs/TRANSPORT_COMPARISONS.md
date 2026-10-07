@@ -5,10 +5,12 @@ able to ask how iroh, an independently built transport, and reference transports
 deliver the same application workload under declared network conditions. CI runs
 and retains these experiments; it is also useful to run them interactively.
 
-This document describes planned work. v0.2.0-alpha.1 supplies the executable
-runner, repeated fixtures and diagnostic evidence; it does not yet include an
-iroh adapter, normalized transport metrics, or a comparison command. Existing
-case wall times measure fixture execution, not transport connection latency.
+Current development builds implement the executable request/event contract,
+standalone pinned iroh/Quinn adapters and `natbench compare` for matched direct
+client-to-WAN workloads. See [usage, measurements and adapter integration](ADAPTERS.md).
+Local relay/traversal and changing-network cohorts below remain planned.
+v0.2.0-alpha.1 predates these additions. Existing case wall times continue to
+measure fixture execution, independently of adapter application timings.
 
 ## Two kinds of comparison
 
@@ -38,8 +40,8 @@ An adapter wraps the implementation's public API and exposes:
 - A versioned workload/configuration request: endpoint role, peer/bootstrap
   information, payload sizes/counts, deadline, reliability mode and path policy.
 - Explicit readiness and bounded, versioned events/results for connection
-  attempts, verified messages, completion, path changes and errors. A JSONL
-  interface is the initial design direction; finalize it against working adapters.
+  attempts, verified messages, completion, path changes and errors. The first
+  [file/JSONL contract](ADAPTERS.md) is implemented against working adapters.
 - Implementation/build version, effective settings and supported capabilities.
   Missing metrics/capabilities remain explicit rather than becoming zero values.
 

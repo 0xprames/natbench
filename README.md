@@ -60,8 +60,8 @@ adds ordinary application scenarios, repeated runs and bounded packet evidence.
 copy the [GitHub Actions example](examples/github-actions/application.yml) for CI.
 The next M2 deliverable is [real transport comparison](docs/TRANSPORT_COMPARISONS.md):
 iroh, reference transports, and independently built custom implementations under
-shared workloads. The alpha supplies the runner/evidence foundation; comparison
-adapters and normalized metrics remain planned. Stable launch also requires
+shared workloads. Current development builds implement the first direct-stream
+cohort; the alpha supplies the earlier runner/evidence foundation. Stable launch also requires
 [outside evaluation](docs/EVALUATION.md). See the
 [milestone release and launch plan](docs/ROADMAP.md) for the release gates.
 
@@ -116,6 +116,25 @@ Each attempt retains its own reports, logs and timeline. The aggregate JSON/JUni
 reports keep all verdicts, timing distributions by verdict, and environment metadata;
 any failed attempt keeps the command nonzero. Timings include fixture setup and
 cleanup. See [repetition reports and limits](docs/REPETITIONS.md).
+
+## Compare real transports
+
+Development builds compare standalone iroh and Quinn adapters using the same
+verified reliable-stream workload, deadlines and NAT profiles. The core remains
+independent of iroh; adapters are separately built executables.
+
+```sh
+cargo build --locked
+cargo build --release --locked --manifest-path examples/transports/Cargo.toml
+sudo ./target/debug/natbench compare examples/transports/direct.json --runs 4 --capture --artifacts ./comparison-001
+```
+
+Reports keep delivery/failure/unsupported counts, first verified data timings,
+application RTT samples, verified bulk goodput, implementation/settings metadata,
+and per-attempt diagnostic evidence. Adapter order rotates across repetitions.
+This first cohort connects a NATed client to a WAN receiver; peer traversal and
+relays follow separately. See [usage and adapter contract](docs/ADAPTERS.md).
+The v0.2.0-alpha.1 binary predates `compare`; build current source for this command.
 
 ## Packet evidence
 

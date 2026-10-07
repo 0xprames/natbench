@@ -1080,12 +1080,13 @@ dependencies = [
 
 [[package]]
 name = "natbench"
-version = "0.2.0-alpha.1"
+version = "0.2.0-dev"
 dependencies = [
  "anyhow",
  "clap",
  "jsonschema",
  "libc",
+ "natbench-transport-protocol",
  "quinn",
  "rcgen",
  "rustls",
@@ -1095,6 +1096,15 @@ dependencies = [
  "socket2 0.5.10",
  "str0m",
  "tokio",
+]
+
+[[package]]
+name = "natbench-transport-protocol"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

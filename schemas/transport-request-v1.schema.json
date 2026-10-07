@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/transport-request-v1.schema.json",
+  "title": "Transport executable request version 1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "transport_request"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{32}$"
+    },
+    "role": {
+      "enum": [
+        "server",
+        "client"
+      ]
+    },
+    "listen_address": {
+      "type": "string",
+      "minLength": 1
+    },
+    "peer_address": {
+      "type": "string",
+      "minLength": 1
+    },
+    "peer_file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deadline_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60000
+    },
+    "workload": {
+      "$ref": "#/$defs/workload"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "role",
+    "listen_address",
+    "peer_address",
+    "peer_file",
+    "deadline_ms",
+    "workload"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "workload": {
+      "type": "object",
+      "properties": {
+        "payload_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "warmup_messages": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "measured_messages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "bulk_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216
+        }
+      },
+      "required": [
+        "payload_bytes",
+        "warmup_messages",
+        "measured_messages",
+        "bulk_bytes"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

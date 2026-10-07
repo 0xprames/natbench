@@ -5,7 +5,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -20,9 +20,14 @@ jobs:
       - run: rustc --edition 2021 -D warnings examples/udp-recovery/main.rs -o examples/udp-recovery/udp-recovery
       - run: |
           cargo fmt --check
+          cargo fmt --check --manifest-path crates/transport-protocol/Cargo.toml
+          cargo fmt --check --manifest-path examples/transports/Cargo.toml
           rustfmt --check --edition 2021 examples/udp-recovery/main.rs
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
+      - run: cargo test --locked --manifest-path crates/transport-protocol/Cargo.toml
+      - run: cargo clippy --locked --manifest-path examples/transports/Cargo.toml --all-targets -- -D warnings
+      - run: cargo build --release --locked --manifest-path examples/transports/Cargo.toml
       - run: sudo ./target/debug/natbench doctor --probe --json > doctor.json
       - run: sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" "NATBENCH_TEST_ARTIFACTS=$PWD/cancellation-artifacts" cargo test --locked -- --include-ignored --test-threads=1
       - run: sudo ./target/debug/natbench matrix > results.json
@@ -31,10 +36,11 @@ jobs:
       - run: sudo ./target/debug/natbench test examples/udp-recovery/scenario.json --artifacts recovery-artifacts
       - run: sudo ./target/debug/natbench repeat examples/udp-recovery/scenario.json --runs 2 --capture --artifacts repetition-artifacts
       - run: sudo scripts/check-application-demo.sh ./target/debug/natbench diagnostic-demo-artifacts
+      - run: sudo scripts/check-transport-comparison.sh ./target/debug/natbench ./examples/transports/target/release/natbench-transport-adapters transport-comparison-artifacts
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -52,3 +58,4 @@ jobs:
             recovery-artifacts/
             repetition-artifacts/
             diagnostic-demo-artifacts/
+            transport-comparison-artifacts/

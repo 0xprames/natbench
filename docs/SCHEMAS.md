@@ -153,3 +153,16 @@ Consumers supporting older archives may keep their explicit version 1 reader.
 Machine-readable schemas use the
 [JSON Schema 2020-12 dialect](https://json-schema.org/draft/2020-12/json-schema-core).
 They are shipped alongside the example scenario in release archives.
+
+## Transport adapter and comparison formats
+
+Development builds add independent version 1 formats distinguished by `kind`:
+`transport_comparison` input, `transport_request`, `transport_peer`,
+`transport_event` and `transport_comparison_report`. Definitions are in `schemas/`.
+Inputs are closed; output objects allow additive metadata. An echoed workload in
+a measurement accepts additive output metadata without relaxing request validation.
+Bounds, identity/order/count invariants, exit/event agreement and metric semantics
+are documented in [the adapter guide](ADAPTERS.md). Comparison report completion
+is independent of success: require exit 0, complete true and interrupted false.
+Application inputs 1–3, suite report 2, repetition report 1 and capture manifest 1
+retain their versions. Application exit timeline events gain an additive exit_code.
