@@ -18,7 +18,11 @@ The [v0.2.0-alpha.1 preview](https://github.com/0xprames/natbench/releases/tag/v
 adds ordinary application scenarios, repeated runs and bounded packet evidence.
 [Start with a reproducible application failure](docs/GETTING_STARTED.md), then
 copy the [GitHub Actions example](examples/github-actions/application.yml) for CI.
-The stable M2 launch awaits [outside evaluation](docs/EVALUATION.md); see the
+The next M2 deliverable is [real transport comparison](docs/TRANSPORT_COMPARISONS.md):
+iroh, reference transports, and independently built custom implementations under
+shared workloads. The alpha supplies the runner/evidence foundation; comparison
+adapters and normalized metrics remain planned. Stable launch also requires
+[outside evaluation](docs/EVALUATION.md). See the
 [milestone release and launch plan](docs/ROADMAP.md) for the release gates.
 
 ## Declarative CI suites

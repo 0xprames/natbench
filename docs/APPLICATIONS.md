@@ -11,8 +11,9 @@ JSONL timeline. Schema 3 adds bounded output/exit waits and explicit downtime.
 Optional [`--capture`](PACKETS.md) saves bounded packet evidence from every fixture role.
 Repeated runs retain counts/timings and per-attempt evidence. See the
 [adoption walkthrough](GETTING_STARTED.md) and [evaluation checklist](EVALUATION.md).
-Outside evaluation remains the M2 stable launch gate; composable network events
-and richer protocol integrations follow in M3/M4. Structured events/stdin are not
+The expanded M2 gate includes [iroh/reference/custom transport comparisons](TRANSPORT_COMPARISONS.md)
+and outside evaluation; composable network events and broader protocol coverage
+follow in M3/M4. Structured events/stdin are not
 part of this preview.
 
 ## Independent Go UDP example

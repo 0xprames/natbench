@@ -3,7 +3,7 @@
 The v0.2.0-alpha.1 preview runs ordinary application executables in controlled
 IPv4 networks, supervises their lifecycle, and saves JSON/JUnit, logs, timelines
 and optional packet evidence. It is ready for evaluation; the stable M2 launch
-still requires outside evaluation. The stable v0.1.1 binary supports built-in
+still requires the planned transport comparison deliverables and outside evaluation. The stable v0.1.1 binary supports built-in
 scenarios only.
 
 ## Install and check the host

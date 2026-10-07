@@ -2,7 +2,9 @@
 
 M2's stable v0.2.0 launch requires at least one outside project or maintainer to
 evaluate the workflow. v0.2.0-alpha.1 is a preview for collecting that evidence;
-publication alone does not satisfy the gate.
+publication alone does not satisfy the gate. The expanded M2 deliverable also
+requires [matched transport comparisons](TRANSPORT_COMPARISONS.md); those adapters
+and normalized metrics are planned, not included in this alpha.
 
 1. Follow [getting started](GETTING_STARTED.md) on a fresh Linux host. Record the
    natbench version, architecture, kernel and active doctor result. Confirm that
@@ -26,7 +28,7 @@ Programs manage their own discovery and traversal. Application input versions 2
 and 3 are supported; suite reports use version 2, repetition and capture reports
 use version 1. Capture requires a separately installed tcpdump.
 
-Scheduled network rebinding, composable impairments and IPv6 are M3 work. Actual
+Scheduled network rebinding, composable impairments and IPv6 are M3 work. Broader
 coturn/browser/libp2p interoperability is M4 work; portable real-network probes
 are M5 work. The built-in relay is a test mailbox, not TURN. These capabilities
 must not be inferred from a successful application runner demo.

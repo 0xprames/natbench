@@ -2,7 +2,8 @@
 
 ## 0.2.0-alpha.1
 
-Application runner evaluation preview; M2 stable launch awaits outside evaluation.
+Application runner evaluation preview; M2 stable launch awaits planned transport
+comparison adapters/metrics and outside evaluation.
 
 - Binary/source walkthrough reproduces a failed delivery requirement, diagnoses it
   from reports/logs/PCAPs, and verifies the corrected network scenario repeatedly.
