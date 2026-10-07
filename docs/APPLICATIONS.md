@@ -128,6 +128,10 @@ interrupted attempts keep available logs and timelines even when no completed
 observation exists. Suite JSON/JUnit checkpoint and exit semantics remain at report
 version 2; see [schema compatibility](SCHEMAS.md).
 
+Use [`natbench repeat`](REPETITIONS.md) to run the same captured application
+scenario several times with fresh fixtures and retained evidence from every attempt.
+The aggregate report includes verdict counts and case timing distributions by verdict.
+
 The fixture isolates networking. Programs execute as the caller (currently root),
 share the host filesystem, and inherit environment except declared overrides.
 Run trusted programs/scenarios; keep credentials out of scenario files and logs

@@ -6,6 +6,7 @@ pub mod bench;
 pub mod doctor;
 pub mod lab;
 mod quic;
+pub mod repeat;
 pub mod scenario;
 mod stun;
 mod tcp;

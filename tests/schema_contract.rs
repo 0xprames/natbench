@@ -61,3 +61,14 @@ fn recovery_example_requires_schema_three_and_preserves_schema_two() {
     legacy["schema_version"] = json!(3);
     recovery.validate(&legacy).unwrap();
 }
+
+#[test]
+fn suite_report_two_retains_older_cases_without_optional_timing() {
+    let legacy = json!({"schema_version":2,"scenario":"older build","cases":[{"name":"peer","status":"passed","messages":[],"observation":null}],"planned_cases":["peer"],"active_case":null,"complete":true,"interrupted":false});
+    validator(include_str!("../schemas/suite-report-v2.schema.json"))
+        .validate(&legacy)
+        .unwrap();
+    let report: natbench::scenario::Report = serde_json::from_value(legacy).unwrap();
+    assert_eq!(report.cases[0].elapsed_seconds, None);
+    assert_eq!(report.exit_code(), 0);
+}
