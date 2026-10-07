@@ -62,13 +62,15 @@ jobs:
           sudo "$binary" test "$scenario" --artifacts packaged-scenario > packaged-report.json
           sudo "$binary" test examples/udp-echo/scenario.json --capture --artifacts application-artifacts > application-report.json
           bundle=$(dirname "$binary")
+          go build -o "$bundle/examples/udp-echo/udp-echo" "$bundle/examples/udp-echo/main.go"
+          sudo "$bundle/scripts/check-application-demo.sh" "$binary" diagnostic-demo-artifacts
           rustc --edition 2021 -D warnings "$bundle/examples/udp-recovery/main.rs" -o "$bundle/examples/udp-recovery/udp-recovery"
           sudo "$binary" test "$bundle/examples/udp-recovery/scenario.json" --artifacts recovery-artifacts > recovery-report.json
           sudo "$binary" repeat "$bundle/examples/udp-recovery/scenario.json" --runs 2 --capture --artifacts repetition-artifacts > repetition-report.json
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -93,6 +95,7 @@ jobs:
             recovery-report.json
             repetition-artifacts/
             repetition-report.json
+            diagnostic-demo-artifacts/
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: build

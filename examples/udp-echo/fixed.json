@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "cases": [
+    {
+      "name": "UDP echo delivery requirement",
+      "a": "preserve",
+      "b": "random",
+      "router_input": "drop",
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./udp-echo",
+            "--mode",
+            "server",
+            "--address",
+            "0.0.0.0:9999"
+          ],
+          "timeout_seconds": 5,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "READY"
+          }
+        },
+        {
+          "name": "client-a",
+          "role": "a",
+          "argv": [
+            "./udp-echo",
+            "--message",
+            "first"
+          ],
+          "timeout_seconds": 5
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "run",
+          "process": "client-a",
+          "expect_exit": 0,
+          "stdout_contains": "PASS first"
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    }
+  ]
+}

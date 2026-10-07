@@ -43,7 +43,7 @@ coverage and tested x86-64/ARM64 archives. M1 is complete.
 
 Initial implementation: `natbench test` executes a JSON suite against the existing
 built-in benchmark. This is the first foundation slice, not the application runner.
-Process logs, packet captures and report comparison remain M2 work.
+The application runner, logs, packet captures and repeated reports followed in M2.
 
 ## M2 Application scenario runner and first public launch
 
@@ -56,9 +56,12 @@ Rust example proves a persistent UDP client receives fresh application data afte
 a service outage behind preserve and random NATs. `natbench repeat` executes a
 frozen scenario with fresh fixtures, per-verdict counts/timings, environment metadata,
 and preserved evidence from interrupted attempts. Optional `--capture` adds bounded
-per-role PCAPs and manifests preserved on failure or interruption. Timed network
-events, richer adapters, the user-facing Actions walkthrough
-and outside evaluation remain before the M2 public launch gate.
+per-role PCAPs and manifests preserved on failure or interruption. The
+[adoption walkthrough](GETTING_STARTED.md), copyable Actions workflow and tested
+failure/correction demo are ready for evaluation in v0.2.0-alpha.1. The
+[contributor guide](../CONTRIBUTING.md) and [evaluation checklist](EVALUATION.md)
+support this preview. Outside evaluation remains before the M2 stable launch gate;
+timed network changes and protocol adapters belong to M3 and M4 respectively.
 
 Exit criteria:
 
@@ -131,8 +134,11 @@ Exit criteria:
 1. Review progress weekly against the current gate and record remaining blockers in
    milestone issues. This plan does not create a recurring automation.
 2. Deliver small reviewed pull requests with their scenario-level validation evidence.
-3. Produce a release candidate when a milestone gate is satisfied; exercise install,
-   quickstart and CI on a fresh Linux environment before tagging a stable release.
+3. Publish clearly labeled alpha previews for outside evaluation when the
+   implementation and install/CI walkthrough pass; previews do not satisfy an
+   external adoption gate. Produce a release candidate when a milestone gate is
+   satisfied; exercise install, quickstart and CI on a fresh Linux environment
+   before tagging a stable release.
 4. Publish binaries, checksums, schema notes and a runnable example with each tag.
 5. For v0.2.0, prepare a concise demo of an actual app failure and recovery plus a
    contributor guide. Broader launch follows successful outside evaluation.

@@ -1,7 +1,8 @@
 # natbench
 
-Measure NAT behavior and exercise UDP traversal, TCP fallback, and recovery
-in isolated Linux networks. Bring your own program with a small Rust fixture.
+Test application connectivity and recovery in isolated Linux networks. Bring your
+own executable, declare its requirements, and keep evidence when they fail.
+Measure NAT behavior with the included Rust experiments.
 
 NAT labels alone don't tell you whether peers can connect. `natbench` observes
 public mappings, probes inbound filtering separately, attempts simultaneous
@@ -13,9 +14,12 @@ or a complete RFC conformance suite. It ships as a Rust binary using Linux netwo
 namespaces and nftables. The same executable supplies the UDP endpoints and relay.
 No application daemon or container runtime is required.
 
-The next releases focus on testing real applications and producing useful CI
-failure evidence. See the [milestone release and launch plan](docs/ROADMAP.md)
-for dates, scope and release gates.
+The [v0.2.0-alpha.1 preview](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.1)
+adds ordinary application scenarios, repeated runs and bounded packet evidence.
+[Start with a reproducible application failure](docs/GETTING_STARTED.md), then
+copy the [GitHub Actions example](examples/github-actions/application.yml) for CI.
+The stable M2 launch awaits [outside evaluation](docs/EVALUATION.md); see the
+[milestone release and launch plan](docs/ROADMAP.md) for the release gates.
 
 ## Declarative CI suites
 
@@ -47,13 +51,13 @@ measurement commands keep their original exit behavior.
 
 ## External application scenarios
 
-Development builds also accept input schemas 2 and 3 for ordinary application
+The v0.2.0-alpha.1 preview accepts input schemas 2 and 3 for ordinary application
 executables: declared readiness, bounded commands, stop/restart steps, assertions,
 logs and timelines. Schema 3 adds output/exit waits and supervised downtime steps.
 See [application scenarios](docs/APPLICATIONS.md), the
 [independent Go UDP example](examples/udp-echo/scenario.json) and the
 [persistent Rust client recovery example](examples/udp-recovery/scenario.json).
-Built-in version 1 suites retain their existing behavior. M2 remains a development build.
+Built-in version 1 suites retain their existing behavior. M2 stable launch remains pending.
 
 ## Repeated scenarios
 
@@ -63,7 +67,7 @@ cargo build --locked
 sudo ./target/debug/natbench repeat examples/udp-recovery/scenario.json --runs 5 --artifacts ./repetitions-001
 ```
 
-Development builds repeat built-in and application inputs with fresh network fixtures.
+The preview repeats built-in and application inputs with fresh network fixtures.
 Each attempt retains its own reports, logs and timeline. The aggregate JSON/JUnit
 reports keep all verdicts, timing distributions by verdict, and environment metadata;
 any failed attempt keeps the command nonzero. Timings include fixture setup and
@@ -71,7 +75,7 @@ cleanup. See [repetition reports and limits](docs/REPETITIONS.md).
 
 ## Packet evidence
 
-Application scenarios in development builds accept `--capture` to save bounded
+Application scenarios in the preview accept `--capture` to save bounded
 PCAPs from each fixture role alongside process logs and timelines. Install `tcpdump`,
 then add the flag to `test` or `repeat`; `--capture=5000` sets a per-role packet budget.
 See [capture scope, limits and a blocked-UDP example](docs/PACKETS.md).
@@ -108,7 +112,7 @@ both architectures pass tests and
 extracted-binary smoke checks; prerelease tags publish prerelease entries. No tag
 or release is created by a branch build. The M1 stable distribution is
 [v0.1.1](https://github.com/0xprames/natbench/releases/tag/v0.1.1); application
-scenarios are available in development builds until the M2 launch gate passes.
+scenarios are available in the v0.2.0-alpha.1 preview. Stable v0.2.0 requires the M2 launch gate.
 
 ## Quick start
 
@@ -414,11 +418,17 @@ on that socket, a WebRTC data channel on that socket, and a timed UDP transfer
 on the punched path, and a TCP simultaneous open on the preserve/preserve
 path. Both application checks still carry data after the relay is gone.
 
-IPv6 is the following experiment.
+Composable network changes and IPv6 follow in M3; protocol interoperability and
+portable diagnosis follow in M4/M5.
 
 ## Development
 
+See [contributing](CONTRIBUTING.md) for setup and pull request guidance. Compile
+both standalone examples before enabling privileged application tests.
+
 ```sh
+go build -o examples/udp-echo/udp-echo examples/udp-echo/main.go
+rustc --edition 2021 -D warnings examples/udp-recovery/main.rs -o examples/udp-recovery/udp-recovery
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked

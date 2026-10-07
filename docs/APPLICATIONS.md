@@ -5,12 +5,15 @@ in the same five-role Linux fixture as the built-in experiments. Programs perfor
 their own discovery, handshake and data transfer. The runner supplies network
 configuration, process lifecycle, readiness checks, deadlines and artifacts.
 
-The M2 development build supports sequential start/run/stop/restart steps,
+The v0.2.0-alpha.1 preview supports sequential start/run/stop/restart steps,
 stdout or TCP readiness, exit-code and stdout assertions, per-process logs and a
 JSONL timeline. Schema 3 adds bounded output/exit waits and explicit downtime.
 Optional [`--capture`](PACKETS.md) saves bounded packet evidence from every fixture role.
-Timed network events, structured application events/stdin,
-repeated-run statistics and outside adoption remain milestone work.
+Repeated runs retain counts/timings and per-attempt evidence. See the
+[adoption walkthrough](GETTING_STARTED.md) and [evaluation checklist](EVALUATION.md).
+Outside evaluation remains the M2 stable launch gate; composable network events
+and richer protocol integrations follow in M3/M4. Structured events/stdin are not
+part of this preview.
 
 ## Independent Go UDP example
 

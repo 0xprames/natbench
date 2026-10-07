@@ -34,12 +34,15 @@ stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 mkdir -p -- "$stage/$name"
 install -m 755 -- "$binary" "$stage/$name/natbench"
-cp -- "$repo/LICENSE" "$repo/README.md" "$repo/CHANGELOG.md" "$stage/$name/"
+cp -- "$repo/LICENSE" "$repo/README.md" "$repo/CHANGELOG.md" "$repo/CONTRIBUTING.md" "$stage/$name/"
 cp -R -- "$repo/docs" "$repo/scenarios" "$repo/schemas" "$stage/$name/"
 mkdir -p "$stage/$name/examples/udp-echo"
-cp "$repo/examples/udp-echo/main.go" "$repo/examples/udp-echo/scenario.json" "$stage/$name/examples/udp-echo/"
+cp "$repo/examples/udp-echo/main.go" "$repo/examples/udp-echo/scenario.json" "$repo/examples/udp-echo/failure.json" "$repo/examples/udp-echo/fixed.json" "$stage/$name/examples/udp-echo/"
 mkdir -p "$stage/$name/examples/udp-recovery"
 cp "$repo/examples/udp-recovery/main.rs" "$repo/examples/udp-recovery/scenario.json" "$stage/$name/examples/udp-recovery/"
+mkdir -p "$stage/$name/examples/github-actions" "$stage/$name/scripts"
+cp "$repo/examples/github-actions/application.yml" "$stage/$name/examples/github-actions/"
+cp "$repo/scripts/check-application-demo.sh" "$stage/$name/scripts/"
 tar -czf "$archive" -C "$stage" "$name"
 (cd -- "$output" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 printf '%s\n' "$archive"

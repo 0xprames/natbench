@@ -1,6 +1,6 @@
 # Packet evidence for application scenarios
 
-Development builds support `--capture` on `test` and `repeat` for application input
+The v0.2.0-alpha.1 preview supports `--capture` on `test` and `repeat` for application input
 versions 2 and 3. Install `tcpdump` alongside the normal fixture prerequisites.
 `doctor` checks for this optional tool; capture explicitly requested without it
 fails before creating artifacts or namespaces. Built-in input version 1 does not
