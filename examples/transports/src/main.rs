@@ -23,6 +23,7 @@ enum Transport {
     Quinn,
 }
 #[derive(Parser)]
+#[command(name = "natbench-transport-adapters", version)]
 struct Cli {
     #[arg(long, value_enum)]
     transport: Transport,

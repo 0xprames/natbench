@@ -1,9 +1,11 @@
 # Test an application and diagnose a failure
 
-The v0.2.0-alpha.1 preview runs ordinary application executables in controlled
+The v0.2.0-alpha.2 preview runs ordinary application executables in controlled
 IPv4 networks, supervises their lifecycle, and saves JSON/JUnit, logs, timelines
 and optional packet evidence. It is ready for evaluation; the stable M2 launch
-still requires the planned transport comparison deliverables and outside evaluation. The stable v0.1.1 binary supports built-in
+still requires outside evaluation. The preview also includes
+[matched transport comparisons](ADAPTERS.md) and [real iroh connectivity tests](IROH_CONNECTIVITY.md),
+with native example binaries included. The stable v0.1.1 binary supports built-in
 scenarios only.
 
 ## Install and check the host
@@ -15,17 +17,17 @@ an isolated host when evaluating unfamiliar applications. Restricted containers
 may fail the active prerequisite check even as root.
 
 Download an archive and `SHA256SUMS` from the
-[preview release](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.1).
+[preview release](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.2).
 For the x86-64 archive, from the download directory:
 
 ```sh
-grep ' natbench-0.2.0-alpha.1-x86_64-unknown-linux-gnu.tar.gz$' SHA256SUMS > selected.sha256
+grep ' natbench-0.2.0-alpha.2-x86_64-unknown-linux-gnu.tar.gz$' SHA256SUMS > selected.sha256
 test "$(wc -l < selected.sha256)" -eq 1
 sha256sum --check selected.sha256
-tar -xzf natbench-0.2.0-alpha.1-x86_64-unknown-linux-gnu.tar.gz
-cd natbench-0.2.0-alpha.1-x86_64-unknown-linux-gnu
+tar -xzf natbench-0.2.0-alpha.2-x86_64-unknown-linux-gnu.tar.gz
+cd natbench-0.2.0-alpha.2-x86_64-unknown-linux-gnu
 sudo apt-get update
-sudo apt-get install -y iproute2 nftables conntrack tcpdump
+sudo apt-get install -y iproute2 nftables conntrack tcpdump python3
 sudo ./natbench doctor --probe
 ```
 

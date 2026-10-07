@@ -1,14 +1,15 @@
 # natbench
 
-**Reproduce application connectivity failures and turn them into CI regression tests.**
+**Test application connectivity and compare transports behind controlled networks.**
 
 Run your own executable behind controlled Linux NATs, block UDP, or restart a
 service. Declare readiness and delivery requirements; natbench keeps JSON/JUnit
 reports, process logs, timelines, and optional packet captures when they fail.
 The runner is written in Rust; your application can use any language.
 
-[Try the application preview](docs/GETTING_STARTED.md) ·
-[Download Linux binaries](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.1) ·
+[Try transport comparisons](docs/ADAPTERS.md) ·
+[Diagnose an application failure](docs/GETTING_STARTED.md) ·
+[Download Linux binaries](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.2) ·
 [Copy the CI workflow](examples/github-actions/application.yml)
 
 ## See a failure and its evidence
@@ -32,7 +33,7 @@ client and WAN captures to locate the blocked traffic. A separate
 [persistent Rust client example](examples/udp-recovery/scenario.json) checks
 fresh application data after a service outage.
 
-The application runner is an **experimental v0.2.0-alpha.1 preview**. It requires
+The application runner is an **experimental v0.2.0-alpha.2 preview**. It requires
 Linux, root and namespace/network administration privileges, iproute2 and nftables;
 packet capture also requires tcpdump. The install walkthrough includes conntrack.
 Programs share the host filesystem and caller privileges. Native x86-64 and ARM64
@@ -54,15 +55,15 @@ or a complete RFC conformance suite. It ships as a Rust binary using Linux netwo
 namespaces and nftables. The same executable supplies the UDP endpoints and relay.
 No application daemon or container runtime is required.
 
-The [v0.2.0-alpha.1 preview](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.1)
+The [v0.2.0-alpha.2 preview](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.2)
 adds ordinary application scenarios, repeated runs and bounded packet evidence.
 [Start with a reproducible application failure](docs/GETTING_STARTED.md), then
 copy the [GitHub Actions example](examples/github-actions/application.yml) for CI.
-The next M2 deliverable is [real transport comparison](docs/TRANSPORT_COMPARISONS.md):
-iroh, reference transports, and independently built custom implementations under
-shared workloads. Current development builds implement the first direct-stream
-cohort and [real iroh traversal/relay application tests](docs/IROH_CONNECTIVITY.md);
-the alpha supplies the earlier runner/evidence foundation. Stable launch also requires
+The preview includes [real transport comparison](docs/TRANSPORT_COMPARISONS.md):
+iroh, Quinn, and independently built custom adapters under shared direct-stream
+workloads. It also includes [real iroh traversal/relay application tests](docs/IROH_CONNECTIVITY.md).
+Native bundles contain both example executables, so these tests need no Rust build.
+Stable launch also requires
 [outside evaluation](docs/EVALUATION.md). See the
 [milestone release and launch plan](docs/ROADMAP.md) for the release gates.
 
@@ -96,7 +97,7 @@ measurement commands keep their original exit behavior.
 
 ## External application scenarios
 
-The v0.2.0-alpha.1 preview accepts input schemas 2 and 3 for ordinary application
+The v0.2.0-alpha.2 preview accepts input schemas 2 and 3 for ordinary application
 executables: declared readiness, bounded commands, stop/restart steps, assertions,
 logs and timelines. Schema 3 adds output/exit waits and supervised downtime steps.
 See [application scenarios](docs/APPLICATIONS.md), the
@@ -120,22 +121,24 @@ cleanup. See [repetition reports and limits](docs/REPETITIONS.md).
 
 ## Compare real transports
 
-Development builds compare standalone iroh and Quinn adapters using the same
-verified reliable-stream workload, deadlines and NAT profiles. The core remains
-independent of iroh; adapters are separately built executables.
+The v0.2.0-alpha.2 bundle compares standalone iroh and Quinn adapters using the
+same verified reliable-stream workload, deadlines and NAT profiles. The core
+remains independent of iroh; the archive includes native adapters under `bin/`.
+From the extracted archive, after installing the fixture prerequisites:
 
 ```sh
-cargo build --locked
-cargo build --release --locked --manifest-path examples/transports/Cargo.toml
-sudo ./target/debug/natbench compare examples/transports/direct.json --runs 4 --capture --artifacts ./comparison-001
+sudo ./natbench compare examples/transports/direct.json --runs 4 --capture --artifacts ./comparison-001
+sudo scripts/check-iroh-connectivity.sh ./natbench ./bin/natbench-iroh-connectivity ./iroh-001
 ```
 
 Reports keep delivery/failure/unsupported counts, first verified data timings,
 application RTT samples, verified bulk goodput, implementation/settings metadata,
 and per-attempt diagnostic evidence. Adapter order rotates across repetitions.
-This first cohort connects a NATed client to a WAN receiver; peer traversal and
-relays follow separately. See [usage and adapter contract](docs/ADAPTERS.md).
-The v0.2.0-alpha.1 binary predates `compare`; build current source for this command.
+The comparison connects a NATed client to a WAN receiver. The separate connectivity
+verifier checks two NATed iroh peers, automatic/forced relay paths, blocked UDP and
+relay interruption. It keeps these results separate from direct-path performance.
+See [source builds and the adapter contract](docs/ADAPTERS.md), and copy the
+[transport CI workflow](examples/github-actions/transports.yml).
 
 ## Packet evidence
 
@@ -165,8 +168,9 @@ The release workflow builds native x86-64 and ARM64 GNU/Linux archives on Ubuntu
 macOS and Windows are not binary targets for the current fixture. Kernel features
 and system tools remain prerequisites even when Rust is not installed.
 
-Each archive includes the executable, license, README, documentation and sample
-scenarios. Verify the downloaded archive against its entry in `SHA256SUMS` before
+Each preview archive includes the controller, native transport/connectivity
+executables under `bin/`, their separately buildable source, license, documentation,
+scenarios and verification scripts. Verify the downloaded archive against its entry in `SHA256SUMS` before
 extracting it. Run the extracted binary's `doctor --probe` and included scenario.
 Checksums check integrity; they do not independently authenticate a download.
 
@@ -176,7 +180,7 @@ both architectures pass tests and
 extracted-binary smoke checks; prerelease tags publish prerelease entries. No tag
 or release is created by a branch build. The M1 stable distribution is
 [v0.1.1](https://github.com/0xprames/natbench/releases/tag/v0.1.1); application
-scenarios are available in the v0.2.0-alpha.1 preview. Stable v0.2.0 requires the M2 launch gate.
+scenarios are available in the v0.2.0-alpha.2 preview. Stable v0.2.0 requires the M2 launch gate.
 
 ## Quick start
 

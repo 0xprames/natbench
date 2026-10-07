@@ -1,6 +1,17 @@
 # Changelog
 
-## 0.2.0 development
+## 0.2.0-alpha.2
+
+Transport comparison and real iroh connectivity evaluation preview. Stable v0.2.0
+still requires an outside evaluation and resolution of blocking feedback.
+
+- Native x86-64/ARM64 archives include standalone adapter/connectivity executables
+  under `bin/` and their source. The shipped comparison and iroh verifier run without
+  Rust installed; native archive CI checks this with Rust excluded from PATH.
+- A copyable transport workflow downloads the pinned bundle and preserves comparison
+  and connectivity evidence. Install/evaluation docs cover applications and transports.
+- All three executables report the preview version; tested tag publication uses the
+  repository's explicit release notes when present.
 
 - Standalone real iroh relay/address-discovery and two-NATed-peer scenarios verify
   automatic/forced paths, blocked-UDP relay delivery, fresh data after relay shutdown

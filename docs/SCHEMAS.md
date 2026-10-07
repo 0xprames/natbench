@@ -156,7 +156,7 @@ They are shipped alongside the example scenario in release archives.
 
 ## Transport adapter and comparison formats
 
-Development builds add independent version 1 formats distinguished by `kind`:
+The v0.2.0-alpha.2 preview adds independent version 1 formats distinguished by `kind`:
 `transport_comparison` input, `transport_request`, `transport_peer`,
 `transport_event` and `transport_comparison_report`. Definitions are in `schemas/`.
 Inputs are closed; output objects allow additive metadata. An echoed workload in

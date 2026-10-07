@@ -1778,7 +1778,7 @@ dependencies = [
 
 [[package]]
 name = "natbench-transport-adapters"
-version = "0.1.0"
+version = "0.2.0-alpha.2"
 dependencies = [
  "anyhow",
  "clap",

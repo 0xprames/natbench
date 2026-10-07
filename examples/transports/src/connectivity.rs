@@ -16,6 +16,7 @@ use std::{
 const ALPN: &[u8] = b"natbench/iroh-connectivity/1";
 const RELAY_URL: &str = "https://198.18.0.1:8443/";
 #[derive(Parser)]
+#[command(name = "natbench-iroh-connectivity", version)]
 struct Cli {
     #[command(subcommand)]
     command: Command,

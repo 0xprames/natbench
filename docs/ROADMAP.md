@@ -59,17 +59,18 @@ frozen scenario with fresh fixtures, per-verdict counts/timings, environment met
 and preserved evidence from interrupted attempts. Optional `--capture` adds bounded
 per-role PCAPs and manifests preserved on failure or interruption. The
 [adoption walkthrough](GETTING_STARTED.md), copyable Actions workflow and tested
-failure/correction demo are ready for evaluation in v0.2.0-alpha.1. The
+failure/correction demo are ready for evaluation in v0.2.0-alpha.2. The
 [contributor guide](../CONTRIBUTING.md) and [evaluation checklist](EVALUATION.md)
 support this preview. The [transport comparison plan](TRANSPORT_COMPARISONS.md)
 moves iroh, a plain QUIC reference and generic external adapters into M2. The direct-stream
 [comparison runner and iroh/Quinn adapters](ADAPTERS.md) now implement normalized
 application timings, verified bulk goodput, rotated runs and preserved evidence in
-development builds. [Real local iroh connectivity cases](IROH_CONNECTIVITY.md) now
+the v0.2.0-alpha.2 preview, whose native bundles include the example executables.
+[Real local iroh connectivity cases](IROH_CONNECTIVITY.md) now
 exercise two NATed peers, automatic/forced relay policy, blocked UDP and relay
 interruption with verified delivery and selected-path evidence through application
 scenarios. They are separate from direct-stream performance comparisons; generic
-cross-stack connectivity cohorts remain further work. The alpha predates both additions.
+cross-stack connectivity cohorts remain further work. The earlier v0.2.0-alpha.1 predates both additions.
 Outside evaluation remains a launch check. Composable network changes follow in M3; broader protocol coverage
 follows in M4.
 

@@ -1,10 +1,19 @@
 # Test real iroh traversal and relay delivery
 
-Development builds include `natbench-iroh-connectivity`, a standalone Rust example
-using pinned iroh and iroh-relay 1.3.0. It runs as ordinary application programs;
-natbench's core does not link either library. The published v0.2.0-alpha.1 predates
-this example. On a Linux host with namespace privileges, iproute2, nftables,
-tcpdump and Python 3:
+The v0.2.0-alpha.2 preview includes `natbench-iroh-connectivity`, a standalone
+Rust example using pinned iroh and iroh-relay 1.3.0. It runs as ordinary application
+programs; natbench's core does not link either library. The older v0.2.0-alpha.1
+predates this example. The Linux fixture needs namespace privileges, iproute2,
+nftables, tcpdump and Python 3.
+
+From the [verified native archive](GETTING_STARTED.md#install-and-check-the-host),
+run the bundled executable without installing Rust:
+
+```sh
+sudo scripts/check-iroh-connectivity.sh ./natbench ./bin/natbench-iroh-connectivity ./iroh-001
+```
+
+For a repository checkout, build the examples separately:
 
 ```sh
 cargo build --locked
@@ -15,7 +24,7 @@ sudo scripts/check-iroh-connectivity.sh ./target/debug/natbench ./examples/trans
 The verifier creates fresh requests and eight application scenarios, executes them
 serially and checks the actual JSONL events. Each case owns a new fixture, endpoint
 identities, certificate and bootstrap/control files. Keep the artifact directory
-new. Source archives include the example and verifier; build the example separately.
+new. Native archives include both the executable and separately buildable source.
 
 ## Placement and bootstrap
 

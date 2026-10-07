@@ -50,7 +50,7 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: |
-          scripts/package-release.sh "target/$TARGET/release/natbench" "$TARGET" dist
+          scripts/package-release.sh "target/$TARGET/release/natbench" "$TARGET" dist examples/transports/target/release
           cd dist
           sha256sum --check *.sha256
       - name: Exercise the extracted archive
@@ -65,9 +65,16 @@ jobs:
           sudo "$binary" test "$scenario" --artifacts packaged-scenario > packaged-report.json
           sudo "$binary" test examples/udp-echo/scenario.json --capture --artifacts application-artifacts > application-report.json
           bundle=$(dirname "$binary")
+          # Exercise the bundled programs without Rust on the runtime PATH.
+          if env PATH=/usr/sbin:/usr/bin:/sbin:/bin bash -c 'command -v cargo || command -v rustc'; then
+            echo "Runtime smoke test requires a PATH without Rust" >&2
+            exit 1
+          fi
+          sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$binary" compare "$bundle/examples/transports/direct.json" --runs 2 --capture --artifacts bundled-comparison-artifacts > bundled-comparison-report.json
+          sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-transport-comparison.sh" "$binary" "$bundle/bin/natbench-transport-adapters" transport-comparison-artifacts
+          sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-iroh-connectivity.sh" "$binary" "$bundle/bin/natbench-iroh-connectivity" iroh-connectivity-artifacts
+          # Included source still rebuilds independently from the controller.
           cargo build --release --locked --manifest-path "$bundle/examples/transports/Cargo.toml" --target-dir "$PWD/examples/transports/target"
-          sudo "$bundle/scripts/check-transport-comparison.sh" "$binary" "$PWD/examples/transports/target/release/natbench-transport-adapters" transport-comparison-artifacts
-          sudo "$bundle/scripts/check-iroh-connectivity.sh" "$binary" "$PWD/examples/transports/target/release/natbench-iroh-connectivity" iroh-connectivity-artifacts
           go build -o "$bundle/examples/udp-echo/udp-echo" "$bundle/examples/udp-echo/main.go"
           sudo "$bundle/scripts/check-application-demo.sh" "$binary" diagnostic-demo-artifacts
           rustc --edition 2021 -D warnings "$bundle/examples/udp-recovery/main.rs" -o "$bundle/examples/udp-recovery/udp-recovery"
@@ -76,7 +83,7 @@ jobs:
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts bundled-comparison-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -102,6 +109,8 @@ jobs:
             repetition-artifacts/
             repetition-report.json
             diagnostic-demo-artifacts/
+            bundled-comparison-artifacts/
+            bundled-comparison-report.json
             transport-comparison-artifacts/
             iroh-connectivity-artifacts/
   publish:
@@ -111,6 +120,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: release-*
@@ -125,8 +135,14 @@ jobs:
           cd dist
           cat *.sha256 > SHA256SUMS
           sha256sum --check SHA256SUMS
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            gh release create "$RELEASE_TAG" --verify-tag --generate-notes --prerelease *.tar.gz SHA256SUMS
+          notes="$GITHUB_WORKSPACE/docs/releases/$RELEASE_TAG.md"
+          args=(--verify-tag)
+          if [[ -f "$notes" ]]; then
+            args+=(--notes-file "$notes")
           else
-            gh release create "$RELEASE_TAG" --verify-tag --generate-notes *.tar.gz SHA256SUMS
+            args+=(--generate-notes)
           fi
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" "${args[@]}" *.tar.gz SHA256SUMS
