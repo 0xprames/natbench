@@ -1,8 +1,48 @@
 # natbench
 
-Test application connectivity and recovery in isolated Linux networks. Bring your
-own executable, declare its requirements, and keep evidence when they fail.
-Measure NAT behavior with the included Rust experiments.
+**Reproduce application connectivity failures and turn them into CI regression tests.**
+
+Run your own executable behind controlled Linux NATs, block UDP, or restart a
+service. Declare readiness and delivery requirements; natbench keeps JSON/JUnit
+reports, process logs, timelines, and optional packet captures when they fail.
+The runner is written in Rust; your application can use any language.
+
+[Try the application preview](docs/GETTING_STARTED.md) ·
+[Download Linux binaries](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.1) ·
+[Copy the CI workflow](examples/github-actions/application.yml)
+
+## See a failure and its evidence
+
+After [installing the preview and building the included Go example](docs/GETTING_STARTED.md#install-and-check-the-host),
+run these commands from the extracted release directory. Each artifact directory
+must be new.
+
+```sh
+# UDP is blocked: the application times out and its delivery assertions fail (exit 1).
+sudo ./natbench test examples/udp-echo/failure.json --capture --artifacts ./failure-001
+
+# Change only the router profile: require two successful attempts (exit 0).
+sudo ./natbench repeat examples/udp-echo/fixed.json --runs 2 --capture --artifacts ./fixed-001
+```
+
+Inspect `failure-001/report.json` for failed assertions and
+`failure-001/case-000/` for application logs, the timeline, and PCAPs.
+The [walkthrough](docs/GETTING_STARTED.md#reproduce-a-delivery-failure) compares
+client and WAN captures to locate the blocked traffic. A separate
+[persistent Rust client example](examples/udp-recovery/scenario.json) checks
+fresh application data after a service outage.
+
+The application runner is an **experimental v0.2.0-alpha.1 preview**. It requires
+Linux, root and namespace/network administration privileges, iproute2 and nftables;
+packet capture also requires tcpdump. The install walkthrough includes conntrack.
+Programs share the host filesystem and caller privileges. Native x86-64 and ARM64
+binaries are available. Stable v0.1.1 supports built-in scenarios only.
+
+If this is useful for your networking work, **star the repository** to bookmark it.
+Trying the preview? [Share your evaluation](docs/EVALUATION.md) so the next release
+addresses real adoption obstacles.
+
+## NAT experiments and scope
 
 NAT labels alone don't tell you whether peers can connect. `natbench` observes
 public mappings, probes inbound filtering separately, attempts simultaneous
