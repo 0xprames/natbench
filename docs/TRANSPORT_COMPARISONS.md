@@ -5,13 +5,14 @@ able to ask how iroh, an independently built transport, and reference transports
 deliver the same application workload under declared network conditions. CI runs
 and retains these experiments; it is also useful to run them interactively.
 
-Current development builds implement the executable request/event contract,
+The v0.2.0-alpha.2 preview implements the executable request/event contract,
 standalone pinned iroh/Quinn adapters and `natbench compare` for matched direct
 client-to-WAN workloads. See [usage, measurements and adapter integration](ADAPTERS.md).
 [Local iroh relay/traversal tests](IROH_CONNECTIVITY.md) now run through application
 scenarios with selected-path and verified-delivery evidence. Changing-network and
 generic cross-stack connectivity cohorts below remain planned.
-v0.2.0-alpha.1 predates these additions. Existing case wall times continue to
+The older v0.2.0-alpha.1 predates these additions. Native bundles include the
+adapter and connectivity executables alongside their source. Existing case wall times continue to
 measure fixture execution, independently of adapter application timings.
 
 ## Two kinds of comparison

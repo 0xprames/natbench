@@ -1,0 +1,51 @@
+# Copy to .github/workflows/natbench-transports.yml. No Rust build is required.
+# Add separately built external adapters to a comparison config for your own stack.
+name: Transport connectivity
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  transports:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install fixture prerequisites
+        run: sudo apt-get update && sudo apt-get install -y iproute2 nftables conntrack tcpdump python3
+      - name: Download the pinned native bundle
+        env:
+          NATBENCH_VERSION: 0.2.0-alpha.2
+        run: |
+          directory=$(mktemp -d)
+          cd "$directory"
+          archive="natbench-${NATBENCH_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          base="https://github.com/0xprames/natbench/releases/download/v${NATBENCH_VERSION}"
+          curl --fail --silent --show-error --location --retry 3 "$base/$archive" --output "$archive"
+          curl --fail --silent --show-error --location --retry 3 "$base/SHA256SUMS" --output SHA256SUMS
+          awk -v archive="$archive" '$2 == archive {print}' SHA256SUMS > selected.sha256
+          test "$(wc -l < selected.sha256)" -eq 1
+          sha256sum --check selected.sha256
+          tar -xzf "$archive"
+          printf 'NATBENCH_BUNDLE=%s/%s\n' "$directory" "${archive%.tar.gz}" >> "$GITHUB_ENV"
+      - name: Check kernel capabilities
+        run: sudo "$NATBENCH_BUNDLE/natbench" doctor --probe --json > natbench-doctor.json
+      - name: Require matched direct-stream delivery
+        run: sudo "$NATBENCH_BUNDLE/natbench" compare "$NATBENCH_BUNDLE/examples/transports/direct.json" --runs 4 --capture --artifacts comparison-artifacts
+      - name: Verify real iroh traversal, relay delivery and interruption
+        run: sudo "$NATBENCH_BUNDLE/scripts/check-iroh-connectivity.sh" "$NATBENCH_BUNDLE/natbench" "$NATBENCH_BUNDLE/bin/natbench-iroh-connectivity" iroh-connectivity-artifacts
+      - name: Make private evidence readable by the artifact uploader
+        if: always()
+        run: |
+          for directory in comparison-artifacts iroh-connectivity-artifacts; do
+            if [[ -d "$directory" ]]; then
+              sudo chown -R -- "$(id -u):$(id -g)" "$directory"
+            fi
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transport-connectivity-evidence
+          path: |
+            natbench-doctor.json
+            comparison-artifacts/
+            iroh-connectivity-artifacts/

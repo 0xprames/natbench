@@ -1,4 +1,9 @@
-# Natbench preview launch
+# Application runner preview launch (v0.2.0-alpha.1)
+
+This brief records the first application preview. The current transport preview is
+[v0.2.0-alpha.2](releases/v0.2.0-alpha.2.md); use its supported capabilities and
+install commands when introducing the current version. The earlier verification
+and discovery baseline below describe v0.2.0-alpha.1.
 
 Introduce v0.2.0-alpha.1 to developers testing UDP, P2P, and service recovery.
 Lead with a reproducible application failure, the retained evidence, and a CI

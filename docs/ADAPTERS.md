@@ -1,9 +1,31 @@
 # Run matched transport comparisons
 
-Development builds add `natbench compare` with independent iroh 1.3.0 and Quinn
-0.11.12 adapters. The v0.2.0-alpha.1 release predates this command. The core uses
-the small shared request/event contract; it does not link iroh. Build the adapters
-separately with a current stable Rust toolchain (iroh requires at least Rust 1.91):
+The v0.2.0-alpha.2 preview includes `natbench compare`, independent iroh 1.3.0
+and Quinn 0.11.12 adapters, and their native binaries under `bin/`. The core uses
+the small shared request/event contract; it does not link iroh. The older
+v0.2.0-alpha.1 release predates this command.
+
+## Use the native bundle
+
+[Download and verify the preview](GETTING_STARTED.md#install-and-check-the-host),
+install the Linux fixture prerequisites and run from the extracted directory:
+
+```sh
+sudo ./natbench compare examples/transports/direct.json --runs 4 --capture --artifacts ./comparison-001
+```
+
+No Rust toolchain is needed. The bundled configuration resolves its adapter
+executables from `bin/`; `comparison-001/report.json`, `junit.xml` and per-attempt
+evidence retain outcomes and measurements. Choose a new artifact directory each time.
+The [copyable transport workflow](../examples/github-actions/transports.yml) downloads
+the pinned bundle, runs this comparison and the real iroh connectivity verifier,
+and uploads available evidence on failure.
+
+## Build from source
+
+Build the core and adapters separately with a current stable Rust toolchain
+(iroh requires at least Rust 1.91). The repository's configuration resolves the
+adapters from their Cargo build directory:
 
 ```sh
 cargo build --locked
