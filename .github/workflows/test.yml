@@ -39,10 +39,11 @@ jobs:
       - run: sudo scripts/check-application-demo.sh ./target/debug/natbench diagnostic-demo-artifacts
       - run: sudo scripts/check-transport-comparison.sh ./target/debug/natbench ./examples/transports/target/release/natbench-transport-adapters transport-comparison-artifacts
       - run: sudo scripts/check-iroh-connectivity.sh ./target/debug/natbench ./examples/transports/target/release/natbench-iroh-connectivity iroh-connectivity-artifacts
+      - run: sudo scripts/check-network-comparison.sh ./target/debug/natbench ./examples/transports/target/release/natbench-transport-adapters network-comparison-artifacts
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts network-comparison-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -62,3 +63,4 @@ jobs:
             diagnostic-demo-artifacts/
             transport-comparison-artifacts/
             iroh-connectivity-artifacts/
+            network-comparison-artifacts/

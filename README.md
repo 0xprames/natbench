@@ -140,6 +140,14 @@ relay interruption. It keeps these results separate from direct-path performance
 See [source builds and the adapter contract](docs/ADAPTERS.md), and copy the
 [transport CI workflow](examples/github-actions/transports.yml).
 
+## Development network controls
+
+Source builds after alpha.2 add [matched directional delay and packet loss](docs/NETWORK_CONDITIONS.md)
+to comparisons, plus reusable named link conditions for ordinary application
+scenarios and repetitions. Kernel settings/counters accompany the existing evidence;
+older input versions remain supported. The [delivery queue](docs/DELIVERY_QUEUE.md)
+tracks TCP, regression gates, recovery experiments and the external adapter starter.
+
 ## Packet evidence
 
 Application scenarios in the preview accept `--capture` to save bounded

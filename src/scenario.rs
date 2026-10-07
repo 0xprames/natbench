@@ -352,12 +352,12 @@ pub(crate) fn prepare(path: &Path) -> Result<Prepared> {
 pub(crate) fn prepare_with_capture(path: &Path, capture_packets: Option<u32>) -> Result<Prepared> {
     let input = fs::read(path).context("read scenario")?;
     let header: Value = serde_json::from_slice(&input).context("parse scenario")?;
-    let suite = if matches!(header["schema_version"].as_u64(), Some(2 | 3)) {
+    let suite = if matches!(header["schema_version"].as_u64(), Some(2..=4)) {
         PreparedSuite::Application(crate::application::Plan::prepare(path, &input)?)
     } else {
         anyhow::ensure!(
             capture_packets.is_none(),
-            "packet capture requires application input schema 2 or 3"
+            "packet capture requires application input schema 2, 3 or 4"
         );
         let suite: Suite = serde_json::from_slice(&input).context("parse scenario")?;
         suite.validate()?;

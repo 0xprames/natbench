@@ -48,11 +48,27 @@ struct Case {
     profile: Profile,
     deadline_ms: u64,
     workload: Workload,
+    #[serde(default)]
+    network: Option<crate::network::DirectConfig>,
 }
 impl Config {
+    fn parse(input: &[u8]) -> Result<Self> {
+        let header: serde_json::Value = serde_json::from_slice(input)?;
+        if header["schema_version"] == 1 {
+            ensure!(
+                !header["cases"]
+                    .as_array()
+                    .is_some_and(|cases| cases.iter().any(|case| case
+                        .as_object()
+                        .is_some_and(|object| object.contains_key("network")))),
+                "network is unsupported in comparison schema 1; use schema 2"
+            );
+        }
+        Ok(serde_json::from_slice(input)?)
+    }
     fn validate(&mut self, base: &Path) -> Result<()> {
         ensure!(
-            self.schema_version == 1 && self.kind == "transport_comparison",
+            matches!(self.schema_version, 1 | 2) && self.kind == "transport_comparison",
             "unsupported comparison input"
         );
         ensure!(
@@ -89,6 +105,13 @@ impl Config {
         }
         names.clear();
         for case in &self.cases {
+            if self.schema_version == 2 {
+                case.network
+                    .as_ref()
+                    .context("comparison schema 2 requires network on every case")?
+                    .links()
+                    .prerequisites()?;
+            }
             ensure!(
                 !case.name.trim().is_empty() && names.insert(case.name.clone()),
                 "case names must be nonempty and unique"
@@ -139,12 +162,19 @@ pub struct Summary {
     pub bulk_bytes_per_second: Option<Timing>,
 }
 #[derive(Serialize)]
+pub struct CaseConditions {
+    pub name: String,
+    pub profile: Profile,
+    network: Option<crate::network::DirectConfig>,
+}
+#[derive(Serialize)]
 pub struct Report {
     pub schema_version: u32,
     pub kind: &'static str,
     pub topology: &'static str,
     pub workload_semantics: &'static str,
     pub environment: Environment,
+    pub case_conditions: Vec<CaseConditions>,
     pub planned: Vec<Planned>,
     pub attempts: Vec<Attempt>,
     pub active_attempt: Option<usize>,
@@ -215,6 +245,20 @@ impl Report {
         for summary in &self.summaries {
             let count = |outcome| summary.outcomes.get(&outcome).copied().unwrap_or(0);
             text.push_str(&format!("{} / {}: {}/{} passed, {} transport failures, {} unsupported, {} errors, {} interrupted, {} unreported\n",summary.case,summary.adapter,count(Outcome::Passed),summary.requested_runs,count(Outcome::TransportFailed),count(Outcome::Unsupported),count(Outcome::InfrastructureFailed),count(Outcome::Interrupted),summary.unreported_runs));
+            if let Some(network) = self
+                .case_conditions
+                .iter()
+                .find(|case| case.name == summary.case)
+                .and_then(|case| case.network.as_ref())
+            {
+                text.push_str(&format!(
+                    "  network: client→server {} ms / {}% loss; server→client {} ms / {}% loss\n",
+                    network.client_to_server.delay_ms,
+                    network.client_to_server.loss_percent,
+                    network.server_to_client.delay_ms,
+                    network.server_to_client.loss_percent
+                ));
+            }
             for (label, timing, scale, unit) in [
                 (
                     "first verified data",
@@ -519,7 +563,11 @@ fn attempt(
         }
         value
     };
-    let input = json!({"schema_version":2,"cases":[{"name":case.name,"a":case.profile,"b":"preserve","router_input":"drop","processes":[program("server"),program("client")],"steps":[{"action":"start","process":"server"},{"action":"run","process":"client"},{"action":"stop","process":"server"}]}]});
+    let mut input = json!({"schema_version":2,"cases":[{"name":case.name,"a":case.profile,"b":"preserve","router_input":"drop","processes":[program("server"),program("client")],"steps":[{"action":"start","process":"server"},{"action":"run","process":"client"},{"action":"stop","process":"server"}]}]});
+    if let Some(network) = &case.network {
+        input["schema_version"] = 4.into();
+        input["cases"][0]["network"] = serde_json::to_value(network.links())?;
+    }
     let path = directory.join("scenario.json");
     private_json(&path, &input)?;
     let report = scenario::run_with_capture(&path, &directory.join("evidence"), capture)?;
@@ -529,7 +577,7 @@ fn attempt(
 pub fn run(path: &Path, artifacts: &Path, runs: u32, capture: Option<u32>) -> Result<Report> {
     ensure!((1..=100).contains(&runs), "runs must be 1–100");
     let input = fs::read(path)?;
-    let mut config: Config = serde_json::from_slice(&input)?;
+    let mut config = Config::parse(&input)?;
     let base = fs::canonicalize(
         path.parent()
             .filter(|p| !p.as_os_str().is_empty())
@@ -581,7 +629,7 @@ pub fn run(path: &Path, artifacts: &Path, runs: u32, capture: Option<u32>) -> Re
             }
         }
     }
-    let mut report = Report { schema_version:1,kind:"transport_comparison_report",topology:"ipv4_client_a_to_wan",workload_semantics:"direct reliable streams; fresh endpoints; bulk includes receiver verification and acknowledgement",environment,planned,attempts:Vec::new(),active_attempt:None,complete:false,interrupted:false,summaries };
+    let mut report = Report { schema_version:1,kind:"transport_comparison_report",topology:"ipv4_client_a_to_wan",workload_semantics:"direct reliable streams; fresh endpoints; bulk includes receiver verification and acknowledgement",environment,case_conditions:config.cases.iter().map(|case|CaseConditions{name:case.name.clone(),profile:case.profile,network:case.network.clone()}).collect(),planned,attempts:Vec::new(),active_attempt:None,complete:false,interrupted:false,summaries };
     report.save(&root)?;
     for index in 0..report.planned.len() {
         if crate::cancellation().load(Ordering::Relaxed) {

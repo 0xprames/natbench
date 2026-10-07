@@ -216,3 +216,69 @@ fn interruption_retains_active_evidence_and_future_slots() {
     assert!(xml.contains("skipped=\"3\""));
     assert_eq!(before, namespaces());
 }
+
+#[test]
+#[ignore = "requires root, namespaces, tc and tcpdump"]
+fn cancellation_preserves_shaped_network_and_packet_evidence() {
+    let before = namespaces();
+    let root = Temp::new("network-cancel");
+    let input = root.config("slow");
+    let mut config: Value = serde_json::from_slice(&fs::read(&input).unwrap()).unwrap();
+    config["schema_version"] = json!(2);
+    config["cases"][0]["network"] = json!({"client_to_server":{"delay_ms":10,"loss_percent":0},"server_to_client":{"delay_ms":20,"loss_percent":0}});
+    fs::write(&input, serde_json::to_vec(&config).unwrap()).unwrap();
+    let artifacts = root.0.join("artifacts");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_natbench"))
+        .arg("compare")
+        .arg(input)
+        .args(["--runs", "2", "--capture", "--artifacts"])
+        .arg(&artifacts)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let log = artifacts.join("attempt-0001/evidence/case-000/client-1.stdout.log");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !fs::read_to_string(&log).is_ok_and(|text| !text.is_empty()) {
+        if Instant::now() > deadline {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            panic!("shaped comparison did not start");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    // SAFETY: positive PID of this test's owned, unreaped child.
+    assert_eq!(unsafe { libc::kill(child.id() as i32, libc::SIGTERM) }, 0);
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            assert_eq!(status.code(), Some(130));
+            break;
+        }
+        if Instant::now() > deadline {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            panic!("shaped comparison cleanup timed out");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    let r = report(&artifacts);
+    assert_eq!(r["interrupted"], true);
+    assert_eq!(r["complete"], false);
+    assert_eq!(r["attempts"][0]["outcome"], "interrupted");
+    let case = artifacts.join("attempt-0001/evidence/case-000");
+    let network: Value =
+        serde_json::from_slice(&fs::read(case.join("network.json")).unwrap()).unwrap();
+    assert_eq!(network["configured"], true);
+    assert_eq!(network["complete"], true);
+    assert_eq!(network["interrupted"], true);
+    assert!(network["links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|link| link["after"].is_array()));
+    let capture: Value =
+        serde_json::from_slice(&fs::read(case.join("capture.json")).unwrap()).unwrap();
+    assert_eq!(capture["complete"], true);
+    assert_eq!(before, namespaces());
+}

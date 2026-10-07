@@ -235,6 +235,53 @@
         ],
         "additionalProperties": true
       }
+    },
+    "case_conditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profile": {
+            "enum": [
+              "preserve",
+              "random",
+              "udp-blocked"
+            ]
+          },
+          "network": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "client_to_server": {
+                    "$ref": "#/$defs/conditions"
+                  },
+                  "server_to_client": {
+                    "$ref": "#/$defs/conditions"
+                  }
+                },
+                "required": [
+                  "client_to_server",
+                  "server_to_client"
+                ],
+                "additionalProperties": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "profile",
+          "network"
+        ],
+        "additionalProperties": true
+      }
     }
   },
   "required": [
@@ -391,6 +438,26 @@
         "name",
         "version",
         "settings"
+      ],
+      "additionalProperties": true
+    },
+    "conditions": {
+      "type": "object",
+      "properties": {
+        "delay_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "loss_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "delay_ms",
+        "loss_percent"
       ],
       "additionalProperties": true
     }

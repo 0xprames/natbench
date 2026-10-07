@@ -172,3 +172,11 @@ two NATed peers, a real local relay/address-discovery service, automatic and for
 relay policies, blocked UDP and relay interruption. Run its verifier through
 application scenarios. These tests do not change the direct-stream comparison
 contract or mix relay samples into its performance summaries.
+
+## Development network conditions
+
+Current source adds [comparison input 2](NETWORK_CONDITIONS.md) for explicit delay
+and random loss in each direction, with kernel settings/counters per attempt. The
+adapter request/workload contract stays at version 1, so existing external adapters
+can participate. Use `examples/transports/conditions.json` after a source build; the
+published alpha.2 predates this configuration.

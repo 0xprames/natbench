@@ -137,3 +137,37 @@ fn transport_inputs_are_closed_and_adapter_outputs_allow_additive_metadata() {
         .validate(&request)
         .unwrap();
 }
+
+#[test]
+fn versioned_network_inputs_are_closed_and_comparison_one_stays_unchanged() {
+    let comparison: Value =
+        serde_json::from_str(include_str!("../examples/transports/conditions.json")).unwrap();
+    let input = validator(include_str!(
+        "../schemas/transport-comparison-v2.schema.json"
+    ));
+    input.validate(&comparison).unwrap();
+    assert!(!validator(include_str!(
+        "../schemas/transport-comparison-v1.schema.json"
+    ))
+    .is_valid(&comparison));
+    let mut old = comparison.clone();
+    old["schema_version"] = 1.into();
+    assert!(!validator(include_str!(
+        "../schemas/transport-comparison-v1.schema.json"
+    ))
+    .is_valid(&old));
+    let mut typo = comparison.clone();
+    typo["cases"][0]["network"]["client_to_server"]["jitter_ms"] = 1.into();
+    assert!(!input.is_valid(&typo));
+    let mut missing = comparison;
+    missing["cases"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("network");
+    assert!(!input.is_valid(&missing));
+    let application = json!({"schema_version":4,"cases":[{"name":"network","a":"preserve","b":"preserve","router_input":"drop","network":{"links":[{"egress":"router_a_wan","conditions":{"delay_ms":10,"loss_percent":1}}]},"processes":[{"name":"app","role":"wan","argv":["true"],"timeout_seconds":1}],"steps":[{"action":"run","process":"app"}]}]});
+    validator(include_str!("../schemas/scenario-v4.schema.json"))
+        .validate(&application)
+        .unwrap();
+    assert!(!validator(include_str!("../schemas/scenario-v3.schema.json")).is_valid(&application));
+}
