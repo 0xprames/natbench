@@ -182,3 +182,19 @@ example-specific format, not an extension of the direct comparison contract.
 `iroh_connectivity_suite`, schema 1, with separate expected outages and a cancellation
 result; require its exit 0 and complete true.
 Core scenario/report versions retain their existing semantics.
+
+## Development network-control inputs
+
+[Comparison input 2](../schemas/transport-comparison-v2.schema.json) requires
+explicit directional conditions on every case. [Application input 4](../schemas/scenario-v4.schema.json)
+requires a per-case set of named egress links and retains input 3 lifecycle steps.
+Existing comparison input 1 and application inputs 2/3 reject the new `network`
+field, including null. The closed input policy and bound/uniqueness checks remain
+in effect. Core suite report 2, repetition report 1 and comparison report 1 retain
+their versions; comparison reports add optional `case_conditions`, and application
+observations add optional `network_conditions` metadata.
+
+[Network evidence 1](../schemas/network-conditions-v1.schema.json) is distinguished
+by kind `network_conditions`; completion concerns collection/configuration integrity,
+independently from the test outcome. See [network semantics and limits](NETWORK_CONDITIONS.md).
+The v0.2.0-alpha.2 archive predates these formats.

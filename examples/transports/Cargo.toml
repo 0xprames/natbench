@@ -1,6 +1,6 @@
 [package]
 name = "natbench-transport-adapters"
-version = "0.2.0-alpha.2"
+version = "0.3.0-dev"
 edition = "2021"
 rust-version = "1.91"
 license = "MIT"

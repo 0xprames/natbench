@@ -54,18 +54,19 @@ mkdir -p "$stage/$name/examples/github-actions" "$stage/$name/scripts"
 cp "$repo/examples/github-actions/application.yml" "$repo/examples/github-actions/transports.yml" "$stage/$name/examples/github-actions/"
 cp "$repo/scripts/check-application-demo.sh" "$stage/$name/scripts/"
 mkdir -p "$stage/$name/examples/transports/src" "$stage/$name/crates/transport-protocol/src"
-cp "$repo/examples/transports/Cargo.toml" "$repo/examples/transports/Cargo.lock" "$repo/examples/transports/build.rs" "$repo/examples/transports/direct.json" "$stage/$name/examples/transports/"
+cp "$repo/examples/transports/Cargo.toml" "$repo/examples/transports/Cargo.lock" "$repo/examples/transports/build.rs" "$repo/examples/transports/direct.json" "$repo/examples/transports/conditions.json" "$stage/$name/examples/transports/"
 cp "$repo/examples/transports/src/main.rs" "$repo/examples/transports/src/connectivity.rs" "$stage/$name/examples/transports/src/"
 cp "$repo/crates/transport-protocol/Cargo.toml" "$repo/crates/transport-protocol/Cargo.lock" "$stage/$name/crates/transport-protocol/"
 cp "$repo/crates/transport-protocol/src/lib.rs" "$stage/$name/crates/transport-protocol/src/"
-cp "$repo/scripts/check-transport-adapters.sh" "$repo/scripts/check-transport-comparison.sh" "$repo/scripts/check-iroh-connectivity.sh" "$stage/$name/scripts/"
+cp "$repo/scripts/check-transport-adapters.sh" "$repo/scripts/check-transport-comparison.sh" "$repo/scripts/check-iroh-connectivity.sh" "$repo/scripts/check-network-comparison.sh" "$stage/$name/scripts/"
 # Resolve the shipped comparison against the bundled executables, retaining the
 # source example's workload and adapter arguments.
-python3 - "$stage/$name/examples/transports/direct.json" <<'PYCONFIG'
+python3 - "$stage/$name/examples/transports" <<'PYCONFIG'
 import json,pathlib,sys
-path=pathlib.Path(sys.argv[1]);config=json.loads(path.read_text())
-for adapter in config['adapters']: adapter['argv'][0]='../../bin/natbench-transport-adapters'
-path.write_text(json.dumps(config,indent=2)+'\n')
+for name in ['direct.json','conditions.json']:
+    path=pathlib.Path(sys.argv[1])/name;config=json.loads(path.read_text())
+    for adapter in config['adapters']: adapter['argv'][0]='../../bin/natbench-transport-adapters'
+    path.write_text(json.dumps(config,indent=2)+'\n')
 PYCONFIG
 tar -czf "$archive" -C "$stage" "$name"
 (cd -- "$output" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")

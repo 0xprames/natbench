@@ -73,6 +73,7 @@ jobs:
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$binary" compare "$bundle/examples/transports/direct.json" --runs 2 --capture --artifacts bundled-comparison-artifacts > bundled-comparison-report.json
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-transport-comparison.sh" "$binary" "$bundle/bin/natbench-transport-adapters" transport-comparison-artifacts
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-iroh-connectivity.sh" "$binary" "$bundle/bin/natbench-iroh-connectivity" iroh-connectivity-artifacts
+          sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-network-comparison.sh" "$binary" "$bundle/bin/natbench-transport-adapters" network-comparison-artifacts
           # Included source still rebuilds independently from the controller.
           cargo build --release --locked --manifest-path "$bundle/examples/transports/Cargo.toml" --target-dir "$PWD/examples/transports/target"
           go build -o "$bundle/examples/udp-echo/udp-echo" "$bundle/examples/udp-echo/main.go"
@@ -83,7 +84,7 @@ jobs:
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts bundled-comparison-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts bundled-comparison-artifacts network-comparison-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -113,6 +114,7 @@ jobs:
             bundled-comparison-report.json
             transport-comparison-artifacts/
             iroh-connectivity-artifacts/
+            network-comparison-artifacts/
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: build

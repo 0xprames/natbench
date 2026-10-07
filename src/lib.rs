@@ -7,6 +7,7 @@ mod capture;
 pub mod compare;
 pub mod doctor;
 pub mod lab;
+mod network;
 mod quic;
 pub mod repeat;
 pub mod scenario;

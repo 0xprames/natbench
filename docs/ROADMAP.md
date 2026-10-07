@@ -108,6 +108,12 @@ approved message; issue/release preparation does not authorize sending messages.
 
 ## M3 Composable networks and recovery events
 
+Current development slice: [directional delay/random loss](NETWORK_CONDITIONS.md)
+now applies to matched comparisons and ordinary application inputs, with kernel
+evidence preserved through failure/cancellation. The public alpha.2 predates it.
+The [delivery queue](DELIVERY_QUEUE.md) records the accepted network, TCP, regression
+gate, recovery and adapter-starter work; the remaining M3 gates below stay open.
+
 Exit criteria:
 
 - Common scenario configuration replaces isolated combinations of command flags.

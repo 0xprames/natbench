@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 development
+
+- Comparison input 2 declares matched client-to-server/server-to-client delay and
+  random loss. Application input 4 exposes the same controls on named fixture links
+  through `test`/`repeat`; older closed input versions retain their behavior.
+- Per-case kernel qdisc settings/counters survive success, setup/process failure and
+  cancellation. Changed final settings fail the fixture; comparison report 1 adds
+  requested case conditions without mixing failed attempts into performance samples.
+- Real adapter verification exercises directional delay, combined loss and total loss
+  in both directions; native archive CI preserves packet and network evidence.
+
 ## 0.2.0-alpha.2
 
 Transport comparison and real iroh connectivity evaluation preview. Stable v0.2.0

@@ -142,3 +142,11 @@ share the host filesystem, and inherit environment except declared overrides.
 Run trusted programs/scenarios; keep credentials out of scenario files and logs
 before exporting artifacts. A process can produce large logs; the runner bounds
 memory used for matching but does not impose a disk quota in this slice.
+
+## Development network conditions
+
+Input [version 4](NETWORK_CONDITIONS.md#ordinary-applications-and-repeat) retains
+version 3 lifecycle semantics and requires named per-case link conditions. `test`
+and `repeat` apply them before process startup and preserve kernel evidence through
+teardown. Existing input 2/3 cases keep their behavior and reject the new field.
+These additions are newer than v0.2.0-alpha.2.

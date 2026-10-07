@@ -31,6 +31,8 @@ struct Case {
     router_input: RouterInput,
     processes: Vec<Program>,
     steps: Vec<Step>,
+    #[serde(default)]
+    network: Option<crate::network::Config>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -107,13 +109,19 @@ impl Step {
 impl Suite {
     fn validate(&self, base: &Path) -> Result<()> {
         anyhow::ensure!(
-            matches!(self.schema_version, 2 | 3)
+            matches!(self.schema_version, 2..=4)
                 && !self.cases.is_empty()
                 && self.cases.len() <= 100,
-            "application schemas 2 and 3 need 1–100 cases"
+            "application schemas 2, 3 and 4 need 1–100 cases"
         );
         let mut case_names = HashSet::new();
         for case in &self.cases {
+            if self.schema_version == 4 {
+                case.network
+                    .as_ref()
+                    .context("application schema 4 requires network on every case")?
+                    .prerequisites()?;
+            }
             anyhow::ensure!(
                 !case.name.trim().is_empty() && case_names.insert(&case.name),
                 "case names must be nonempty and unique"
@@ -185,8 +193,8 @@ impl Suite {
                     Step::WaitStdout { .. } | Step::WaitExit { .. } | Step::Delay { .. }
                 ) {
                     anyhow::ensure!(
-                        self.schema_version == 3,
-                        "wait_stdout, wait_exit and delay require application schema 3"
+                        matches!(self.schema_version, 3 | 4),
+                        "wait_stdout, wait_exit and delay require application schema 3 or 4"
                     );
                 }
                 if let Step::Delay { seconds } = step {
@@ -333,6 +341,8 @@ struct Active {
 struct Runner<'a> {
     // Capture must flush before Lab tears down processes and namespaces on any return path.
     capture: Option<crate::capture::Group>,
+    // Network snapshots must also finish before namespace teardown.
+    network: Option<crate::network::Evidence>,
     lab: Lab,
     case: &'a Case,
     base: &'a Path,
@@ -565,6 +575,9 @@ impl<'a> Runner<'a> {
     }
     fn execute(mut self) -> Result<CaseReport> {
         let mut messages = Vec::new();
+        if self.network.is_some() {
+            self.record(json!({"elapsed_ms":self.started.elapsed().as_millis(), "state":"network_configured"}))?;
+        }
         if self.capture.is_some() {
             self.record(
                 json!({"elapsed_ms":self.started.elapsed().as_millis(), "state":"capture_ready"}),
@@ -670,6 +683,14 @@ impl<'a> Runner<'a> {
                 "packet capture did not finish cleanly; see capture.json and tcpdump logs"
             );
         }
+        let network = self
+            .network
+            .as_mut()
+            .map(|network| network.finish())
+            .transpose()?;
+        if network.is_some() {
+            self.record(json!({"elapsed_ms":self.started.elapsed().as_millis(), "state":"network_finished"}))?;
+        }
         Ok(CaseReport {
             name: self.case.name.clone(),
             status: if messages.is_empty() {
@@ -679,7 +700,7 @@ impl<'a> Runner<'a> {
             },
             messages,
             observation: Some(
-                json!({"schema_version":1,"experiment":"application","events":self.events,"logs_directory":self.artifacts.file_name().unwrap().to_string_lossy(),"packet_capture":capture}),
+                json!({"schema_version":1,"experiment":"application","events":self.events,"logs_directory":self.artifacts.file_name().unwrap().to_string_lossy(),"packet_capture":capture,"network_conditions":network}),
             ),
             elapsed_seconds: None,
         })
@@ -691,6 +712,17 @@ pub(crate) struct Plan {
 }
 impl Plan {
     pub(crate) fn prepare(path: &Path, input: &[u8]) -> Result<Self> {
+        let header: Value = serde_json::from_slice(input).context("parse application scenario")?;
+        if matches!(header["schema_version"].as_u64(), Some(2 | 3)) {
+            anyhow::ensure!(
+                !header["cases"]
+                    .as_array()
+                    .is_some_and(|cases| cases.iter().any(|case| case
+                        .as_object()
+                        .is_some_and(|object| object.contains_key("network")))),
+                "network is unsupported in application schema 2/3; use schema 4"
+            );
+        }
         let suite: Suite = serde_json::from_slice(input).context("parse application scenario")?;
         let source = fs::canonicalize(path)?;
         let base = source.parent().unwrap().to_owned();
@@ -720,11 +752,17 @@ impl Plan {
                 let timeline = File::create(directory.join("timeline.jsonl"))?;
                 let mut lab = Lab::create(case.a, case.b, case.router_input)?;
                 let started = Instant::now();
+                let network = case
+                    .network
+                    .as_ref()
+                    .map(|config| crate::network::Evidence::start(&lab, &directory, config))
+                    .transpose()?;
                 let capture = capture_options
                     .map(|options| crate::capture::Group::start(&mut lab, &directory, options))
                     .transpose()?;
                 let runner = Runner {
                     capture,
+                    network,
                     lab,
                     case,
                     base: &self.base,

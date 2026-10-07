@@ -1,0 +1,108 @@
+{
+  "schema_version": 2,
+  "kind": "transport_comparison",
+  "adapters": [
+    {
+      "name": "iroh",
+      "argv": [
+        "./target/release/natbench-transport-adapters",
+        "--transport",
+        "iroh"
+      ]
+    },
+    {
+      "name": "quinn",
+      "argv": [
+        "./target/release/natbench-transport-adapters",
+        "--transport",
+        "quinn"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "name": "unimpaired reference",
+      "profile": "preserve",
+      "deadline_ms": 12000,
+      "workload": {
+        "payload_bytes": 128,
+        "warmup_messages": 2,
+        "measured_messages": 5,
+        "bulk_bytes": 65536
+      },
+      "network": {
+        "client_to_server": {
+          "delay_ms": 0,
+          "loss_percent": 0
+        },
+        "server_to_client": {
+          "delay_ms": 0,
+          "loss_percent": 0
+        }
+      }
+    },
+    {
+      "name": "upload delay",
+      "profile": "preserve",
+      "deadline_ms": 12000,
+      "workload": {
+        "payload_bytes": 128,
+        "warmup_messages": 2,
+        "measured_messages": 5,
+        "bulk_bytes": 65536
+      },
+      "network": {
+        "client_to_server": {
+          "delay_ms": 40,
+          "loss_percent": 0
+        },
+        "server_to_client": {
+          "delay_ms": 0,
+          "loss_percent": 0
+        }
+      }
+    },
+    {
+      "name": "download delay",
+      "profile": "preserve",
+      "deadline_ms": 12000,
+      "workload": {
+        "payload_bytes": 128,
+        "warmup_messages": 2,
+        "measured_messages": 5,
+        "bulk_bytes": 65536
+      },
+      "network": {
+        "client_to_server": {
+          "delay_ms": 0,
+          "loss_percent": 0
+        },
+        "server_to_client": {
+          "delay_ms": 40,
+          "loss_percent": 0
+        }
+      }
+    },
+    {
+      "name": "delay with random loss",
+      "profile": "preserve",
+      "deadline_ms": 12000,
+      "workload": {
+        "payload_bytes": 128,
+        "warmup_messages": 2,
+        "measured_messages": 5,
+        "bulk_bytes": 65536
+      },
+      "network": {
+        "client_to_server": {
+          "delay_ms": 15,
+          "loss_percent": 1
+        },
+        "server_to_client": {
+          "delay_ms": 25,
+          "loss_percent": 1
+        }
+      }
+    }
+  ]
+}
