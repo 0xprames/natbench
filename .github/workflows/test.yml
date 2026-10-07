@@ -29,6 +29,7 @@ jobs:
       - run: sudo ./target/debug/natbench test scenarios/connectivity.json --artifacts scenario-artifacts
       - run: sudo ./target/debug/natbench test examples/udp-echo/scenario.json --artifacts application-artifacts
       - run: sudo ./target/debug/natbench test examples/udp-recovery/scenario.json --artifacts recovery-artifacts
+      - run: sudo ./target/debug/natbench repeat examples/udp-recovery/scenario.json --runs 2 --artifacts repetition-artifacts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -40,3 +41,4 @@ jobs:
             cancellation-artifacts/
             application-artifacts/
             recovery-artifacts/
+            repetition-artifacts/

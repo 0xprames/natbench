@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/0xprames/natbench/main/schemas/repetition-report-v1.schema.json",
+  "title": "natbench repetition report version 1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "scenario",
+    "requested_runs",
+    "completed_runs",
+    "active_run",
+    "complete",
+    "interrupted",
+    "environment",
+    "completed_run_seconds",
+    "cases",
+    "runs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "repetition_report"
+    },
+    "scenario": {
+      "type": "string"
+    },
+    "requested_runs": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "completed_runs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "active_run": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 100
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "interrupted": {
+      "type": "boolean"
+    },
+    "environment": {
+      "$ref": "#/$defs/environment"
+    },
+    "completed_run_seconds": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/timing"
+        }
+      ]
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/case"
+      },
+      "minItems": 1,
+      "maxItems": 100
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/run"
+      },
+      "maxItems": 100
+    }
+  },
+  "$defs": {
+    "timing": {
+      "type": "object",
+      "required": [
+        "samples",
+        "min",
+        "max",
+        "mean",
+        "median",
+        "p95"
+      ],
+      "properties": {
+        "samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "min": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max": {
+          "type": "number",
+          "minimum": 0
+        },
+        "mean": {
+          "type": "number",
+          "minimum": 0
+        },
+        "median": {
+          "type": "number",
+          "minimum": 0
+        },
+        "p95": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "verdicts": {
+      "type": "object",
+      "required": [
+        "passed",
+        "assertion_failed",
+        "inconclusive",
+        "infrastructure_failed"
+      ],
+      "properties": {
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assertion_failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inconclusive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "infrastructure_failed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "required": [
+        "name",
+        "requested_runs",
+        "completed_runs",
+        "interrupted_runs",
+        "unfinished_runs",
+        "unreported_runs",
+        "verdicts",
+        "timing_seconds"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "requested_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "completed_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "interrupted_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unfinished_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unreported_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verdicts": {
+          "$ref": "#/$defs/verdicts"
+        },
+        "timing_seconds": {
+          "type": "object",
+          "properties": {
+            "passed": {
+              "$ref": "#/$defs/timing"
+            },
+            "assertion_failed": {
+              "$ref": "#/$defs/timing"
+            },
+            "inconclusive": {
+              "$ref": "#/$defs/timing"
+            },
+            "infrastructure_failed": {
+              "$ref": "#/$defs/timing"
+            }
+          }
+        }
+      }
+    },
+    "sample": {
+      "type": "object",
+      "required": [
+        "name",
+        "status",
+        "messages",
+        "elapsed_seconds"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "assertion_failed",
+            "inconclusive",
+            "infrastructure_failed"
+          ]
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "elapsed_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": [
+        "index",
+        "artifacts_directory",
+        "complete",
+        "interrupted",
+        "exit_code",
+        "elapsed_seconds",
+        "active_case",
+        "error",
+        "cases"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "artifacts_directory": {
+          "type": "string"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "interrupted": {
+          "type": "boolean"
+        },
+        "exit_code": {
+          "enum": [
+            0,
+            1,
+            2,
+            3,
+            130
+          ]
+        },
+        "elapsed_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "active_case": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sample"
+          }
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "required": [
+        "natbench_version",
+        "os",
+        "architecture",
+        "kernel_release",
+        "effective_uid",
+        "recorded_at_unix_seconds"
+      ],
+      "properties": {
+        "natbench_version": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "kernel_release": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effective_uid": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recorded_at_unix_seconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

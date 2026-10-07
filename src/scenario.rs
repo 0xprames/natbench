@@ -6,7 +6,13 @@ use crate::{
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{fs, io::Write, path::Path, sync::atomic::Ordering};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::atomic::Ordering,
+    time::Instant,
+};
 
 pub const SCENARIO_SCHEMA_VERSION: u32 = 1;
 pub const REPORT_SCHEMA_VERSION: u32 = 2;
@@ -33,7 +39,7 @@ pub struct Expectation {
     pub pointer: String,
     pub equals: Value,
 }
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum Status {
     Passed,
@@ -41,14 +47,16 @@ pub enum Status {
     Inconclusive,
     InfrastructureFailed,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct CaseReport {
     pub name: String,
     pub status: Status,
     pub messages: Vec<String>,
     pub observation: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elapsed_seconds: Option<f64>,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Report {
     pub schema_version: u32,
     pub scenario: String,
@@ -85,6 +93,12 @@ impl Report {
         }
     }
     pub fn junit(&self) -> String {
+        format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}",
+            self.junit_fragment("natbench")
+        )
+    }
+    pub(crate) fn junit_fragment(&self, suite_name: &str) -> String {
         let failures = self
             .cases
             .iter()
@@ -104,10 +118,15 @@ impl Report {
         let skipped = self.planned_cases.len()
             - self.cases.len()
             - usize::from(self.interrupted && self.active_case.is_some());
-        let mut xml = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuite name=\"natbench\" tests=\"{}\" failures=\"{failures}\" errors=\"{errors}\" skipped=\"{skipped}\">\n", self.planned_cases.len());
+        let mut xml = format!("<testsuite name=\"{}\" tests=\"{}\" failures=\"{failures}\" errors=\"{errors}\" skipped=\"{skipped}\">\n", escape(suite_name), self.planned_cases.len());
         for name in &self.planned_cases {
-            xml.push_str(&format!("<testcase name=\"{}\">", escape(name)));
-            if let Some(case) = self.cases.iter().find(|c| c.name == *name) {
+            let case = self.cases.iter().find(|case| case.name == *name);
+            let time = case
+                .and_then(|case| case.elapsed_seconds)
+                .map(|seconds| format!(" time=\"{seconds:.6}\""))
+                .unwrap_or_default();
+            xml.push_str(&format!("<testcase name=\"{}\"{time}>", escape(name)));
+            if let Some(case) = case {
                 let tag = match case.status {
                     Status::Passed => None,
                     Status::AssertionFailed => Some("failure"),
@@ -130,7 +149,7 @@ impl Report {
         xml
     }
 }
-fn escape(input: &str) -> String {
+pub(crate) fn escape(input: &str) -> String {
     input
         .chars()
         .filter(|c| matches!(*c, '\t' | '\n' | '\r' | '\u{20}'..='\u{d7ff}' | '\u{e000}'..='\u{fffd}' | '\u{10000}'..='\u{10ffff}'))
@@ -243,6 +262,7 @@ impl Suite {
                     status,
                     messages,
                     observation: Some(observation),
+                    elapsed_seconds: None,
                 })
             },
             checkpoint,
@@ -275,17 +295,21 @@ fn execute_plan(
         let name = report.planned_cases[index].clone();
         report.active_case = Some(name.clone());
         checkpoint(&report)?;
+        let started = Instant::now();
         let result = experiment(index);
         if result.is_err() && cancelled() {
             report.interrupted = true;
             break;
         }
-        report.cases.push(result.unwrap_or_else(|error| CaseReport {
+        let mut case = result.unwrap_or_else(|error| CaseReport {
             name,
             status: Status::InfrastructureFailed,
             messages: vec![format!("{error:#}")],
             observation: None,
-        }));
+            elapsed_seconds: None,
+        });
+        case.elapsed_seconds = Some(started.elapsed().as_secs_f64());
+        report.cases.push(case);
         report.active_case = None;
         checkpoint(&report)?;
         if cancelled() {
@@ -312,33 +336,68 @@ pub(crate) fn run_application_cases(
     )
 }
 
-pub fn run(path: &Path, artifacts: &Path) -> Result<Report> {
+pub(crate) struct Prepared {
+    source: PathBuf,
+    pub(crate) input: Vec<u8>,
+    suite: PreparedSuite,
+}
+enum PreparedSuite {
+    Builtin(Suite),
+    Application(crate::application::Plan),
+}
+pub(crate) fn prepare(path: &Path) -> Result<Prepared> {
     let input = fs::read(path).context("read scenario")?;
     let header: Value = serde_json::from_slice(&input).context("parse scenario")?;
-    if matches!(header["schema_version"].as_u64(), Some(2 | 3)) {
-        return crate::application::run(path, artifacts, &input);
-    }
-    let suite: Suite = serde_json::from_slice(&input).context("parse scenario")?;
-    suite.validate()?;
-    // Never silently replace the evidence from an earlier run.
-    fs::create_dir(artifacts)
-        .context("artifact directory must be new and its parent must exist")?;
-    fs::copy(path, artifacts.join("scenario.json"))?;
-    suite.evaluate_checkpointed(
-        path.display().to_string(),
-        |case| {
-            let mut options = Options::current_exe()?;
-            options.a = case.a;
-            options.b = case.b;
-            options.router_input = case.router_input;
-            options.timeout_seconds = case.timeout_seconds;
-            bench::benchmark(&options)
-        },
-        |report| save_checkpoint(artifacts, report),
-        || crate::cancellation().load(Ordering::Relaxed),
-    )
+    let suite = if matches!(header["schema_version"].as_u64(), Some(2 | 3)) {
+        PreparedSuite::Application(crate::application::Plan::prepare(path, &input)?)
+    } else {
+        let suite: Suite = serde_json::from_slice(&input).context("parse scenario")?;
+        suite.validate()?;
+        PreparedSuite::Builtin(suite)
+    };
+    Ok(Prepared {
+        source: path.to_owned(),
+        input,
+        suite,
+    })
 }
-fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
+impl Prepared {
+    pub(crate) fn names(&self) -> Vec<String> {
+        match &self.suite {
+            PreparedSuite::Builtin(suite) => {
+                suite.cases.iter().map(|case| case.name.clone()).collect()
+            }
+            PreparedSuite::Application(plan) => plan.names(),
+        }
+    }
+    pub(crate) fn run(&self, artifacts: &Path) -> Result<Report> {
+        fs::create_dir(artifacts)
+            .context("artifact directory must be new and its parent must exist")?;
+        // Save the validated bytes, even if the source file changes during execution.
+        fs::write(artifacts.join("scenario.json"), &self.input)?;
+        let source = self.source.display().to_string();
+        match &self.suite {
+            PreparedSuite::Application(plan) => plan.run(source, artifacts),
+            PreparedSuite::Builtin(suite) => suite.evaluate_checkpointed(
+                source,
+                |case| {
+                    let mut options = Options::current_exe()?;
+                    options.a = case.a;
+                    options.b = case.b;
+                    options.router_input = case.router_input;
+                    options.timeout_seconds = case.timeout_seconds;
+                    bench::benchmark(&options)
+                },
+                |report| save_checkpoint(artifacts, report),
+                || crate::cancellation().load(Ordering::Relaxed),
+            ),
+        }
+    }
+}
+pub fn run(path: &Path, artifacts: &Path) -> Result<Report> {
+    prepare(path)?.run(artifacts)
+}
+pub(crate) fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     let temporary = path.with_extension("checkpoint.tmp");
     let result = (|| -> Result<()> {
         let mut file = fs::File::create(&temporary)?;

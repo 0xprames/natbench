@@ -34,11 +34,19 @@ enum Action {
     NfqueueProbe { namespace: String },
     #[command(name = "__tcp-ready", hide = true)]
     TcpReady { address: std::net::SocketAddr },
-    /// Execute a declarative built-in suite with CI assertions and JSON/JUnit artifacts.
+    /// Execute a built-in or application scenario with JSON/JUnit artifacts.
     Test {
         scenario: PathBuf,
         #[arg(long)]
         artifacts: PathBuf,
+    },
+    /// Repeat a frozen scenario with fresh fixtures, verdict counts and timing summaries.
+    Repeat {
+        scenario: PathBuf,
+        #[arg(long)]
+        artifacts: PathBuf,
+        #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u32).range(1..=100))]
+        runs: u32,
     },
     Bench {
         #[command(flatten)]
@@ -197,6 +205,22 @@ fn execute(action: Action) -> Result<i32> {
             }
             println!("{}", serde_json::to_string_pretty(&report)?);
             return Ok(report.exit_code());
+        }
+        Action::Repeat {
+            scenario,
+            artifacts,
+            runs,
+        } => {
+            let summary = match natbench::repeat::run(&scenario, &artifacts, runs) {
+                Ok(summary) => summary,
+                Err(error) => {
+                    eprintln!("natbench repeat: {error:#}");
+                    return Ok(2);
+                }
+            };
+            eprint!("{}", summary.readable());
+            println!("{}", serde_json::to_string_pretty(&summary)?);
+            return Ok(summary.exit_code());
         }
         Action::Bench { network, timeout } => {
             let result = bench::benchmark(&Options {

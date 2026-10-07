@@ -2,6 +2,10 @@
 
 ## 0.2.0 development
 
+- `repeat` runs a frozen scenario with fresh fixtures, retains every attempt, and
+  checkpoints aggregate JSON/JUnit with verdict counts and timing distributions.
+- Repetition reports record natbench/kernel versions, OS, architecture and caller UID;
+  suite report 2 adds optional case wall times and JUnit time attributes.
 - Application input schema 2 with ordinary executable argv, cwd/env, declared
   readiness, deadlines and sequential lifecycle steps.
 - Per-launch stdout/stderr and JSONL lifecycle timelines, preserved on failure.

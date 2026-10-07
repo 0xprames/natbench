@@ -79,6 +79,11 @@ and `infrastructure_failed`. `observation` contains the raw experiment JSON when
 available and is null after a fixture error. Cancellation is suite-level state;
 the active case does not acquire a misleading infrastructure-failure verdict.
 
+Development builds add optional `elapsed_seconds` on completed cases and a JUnit
+`time` attribute. It measures the case's monotonic wall time from fixture setup
+through teardown, excluding suite checkpoint writes. Older version 2 reports may
+omit it. Cases interrupted before a completed verdict do not provide this sample.
+
 Output readers must accept additional fields within a supported version and must
 not infer completion from the number of currently available cases. Changing field
 types, meaning, required fields or the set of verdicts requires a new report
@@ -118,6 +123,13 @@ precedence over other verdicts. Existing standalone measurement commands retain
 their prior exit semantics.
 
 ## Other JSON and release migration
+
+`natbench repeat` writes [repetition report version 1](../schemas/repetition-report-v1.schema.json),
+identified by `kind: "repetition_report"`. It is a separate document from the suite
+reports retained under each `run-001`, `run-002`, etc. directory. Scenario inputs
+remain at versions 1, 2 and 3; per-run suite reports remain at version 2. Aggregate
+readers must dispatch by command/type and check `complete`, `interrupted` and the
+process exit status. See [repetition semantics](REPETITIONS.md) for counters and timing.
 
 Raw experiments embedded under `observation` keep their own `schema_version: 1`.
 Doctor reports also remain at version 1. Report consumers must dispatch by both

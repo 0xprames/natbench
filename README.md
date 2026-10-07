@@ -55,6 +55,20 @@ See [application scenarios](docs/APPLICATIONS.md), the
 [persistent Rust client recovery example](examples/udp-recovery/scenario.json).
 Built-in version 1 suites retain their existing behavior. M2 remains a development build.
 
+## Repeated scenarios
+
+```sh
+rustc --edition 2021 examples/udp-recovery/main.rs -o examples/udp-recovery/udp-recovery
+cargo build --locked
+sudo ./target/debug/natbench repeat examples/udp-recovery/scenario.json --runs 5 --artifacts ./repetitions-001
+```
+
+Development builds repeat built-in and application inputs with fresh network fixtures.
+Each attempt retains its own reports, logs and timeline. The aggregate JSON/JUnit
+reports keep all verdicts, timing distributions by verdict, and environment metadata;
+any failed attempt keeps the command nonzero. Timings include fixture setup and
+cleanup. See [repetition reports and limits](docs/REPETITIONS.md).
+
 ## Prerequisite checks
 
 `natbench doctor` checks Linux, effective UID and executable availability without

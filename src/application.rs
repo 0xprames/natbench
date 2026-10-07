@@ -659,38 +659,52 @@ impl<'a> Runner<'a> {
             observation: Some(
                 json!({"schema_version":1,"experiment":"application","events":self.events,"logs_directory":self.artifacts.file_name().unwrap().to_string_lossy()}),
             ),
+            elapsed_seconds: None,
         })
     }
 }
-pub fn run(path: &Path, artifacts: &Path, input: &[u8]) -> Result<Report> {
-    let suite: Suite = serde_json::from_slice(input).context("parse application scenario")?;
-    let source = fs::canonicalize(path)?;
-    let base = source.parent().unwrap();
-    suite.validate(base)?;
-    fs::create_dir(artifacts)
-        .context("artifact directory must be new and its parent must exist")?;
-    fs::copy(path, artifacts.join("scenario.json"))?;
-    crate::scenario::run_application_cases(
-        path.display().to_string(),
-        suite.cases.iter().map(|c| c.name.clone()).collect(),
-        |index| {
-            let case = &suite.cases[index];
-            let directory = artifacts.join(format!("case-{index:03}"));
-            fs::create_dir(&directory)?;
-            let timeline = File::create(directory.join("timeline.jsonl"))?;
-            let runner = Runner {
-                lab: Lab::create(case.a, case.b, case.router_input)?,
-                case,
-                base,
-                artifacts: &directory,
-                active: BTreeMap::new(),
-                generation: BTreeMap::new(),
-                events: Vec::new(),
-                timeline,
-                started: Instant::now(),
-            };
-            runner.execute()
-        },
-        artifacts,
-    )
+pub(crate) struct Plan {
+    suite: Suite,
+    base: PathBuf,
+}
+impl Plan {
+    pub(crate) fn prepare(path: &Path, input: &[u8]) -> Result<Self> {
+        let suite: Suite = serde_json::from_slice(input).context("parse application scenario")?;
+        let source = fs::canonicalize(path)?;
+        let base = source.parent().unwrap().to_owned();
+        suite.validate(&base)?;
+        Ok(Self { suite, base })
+    }
+    pub(crate) fn names(&self) -> Vec<String> {
+        self.suite
+            .cases
+            .iter()
+            .map(|case| case.name.clone())
+            .collect()
+    }
+    pub(crate) fn run(&self, source: String, artifacts: &Path) -> Result<Report> {
+        crate::scenario::run_application_cases(
+            source,
+            self.names(),
+            |index| {
+                let case = &self.suite.cases[index];
+                let directory = artifacts.join(format!("case-{index:03}"));
+                fs::create_dir(&directory)?;
+                let timeline = File::create(directory.join("timeline.jsonl"))?;
+                let runner = Runner {
+                    lab: Lab::create(case.a, case.b, case.router_input)?,
+                    case,
+                    base: &self.base,
+                    artifacts: &directory,
+                    active: BTreeMap::new(),
+                    generation: BTreeMap::new(),
+                    events: Vec::new(),
+                    timeline,
+                    started: Instant::now(),
+                };
+                runner.execute()
+            },
+            artifacts,
+        )
+    }
 }

@@ -53,8 +53,10 @@ per-process logs and lifecycle timelines. Schema 3 adds output/exit waits and
 supervised delay steps for explicit service downtime. The independent Go UDP
 example exercises NAT, restart and an expected UDP-blocked failure. A standalone
 Rust example proves a persistent UDP client receives fresh application data after
-a service outage behind preserve and random NATs. Timed network events, richer
-adapters, packet capture, repeat statistics, the user-facing Actions walkthrough
+a service outage behind preserve and random NATs. `natbench repeat` executes a
+frozen scenario with fresh fixtures, per-verdict counts/timings, environment metadata,
+and preserved evidence from interrupted attempts. Timed network events, richer
+adapters, packet capture, the user-facing Actions walkthrough
 and outside evaluation remain before the M2 public launch gate.
 
 Exit criteria:

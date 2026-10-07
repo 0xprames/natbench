@@ -74,7 +74,12 @@
             "type": "string"
           }
         },
-        "observation": {}
+        "observation": {},
+        "elapsed_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Optional complete-case wall time, including fixture setup and teardown, in seconds."
+        }
       }
     }
   }

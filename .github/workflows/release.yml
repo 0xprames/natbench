@@ -64,6 +64,7 @@ jobs:
           bundle=$(dirname "$binary")
           rustc --edition 2021 -D warnings "$bundle/examples/udp-recovery/main.rs" -o "$bundle/examples/udp-recovery/udp-recovery"
           sudo "$binary" test "$bundle/examples/udp-recovery/scenario.json" --artifacts recovery-artifacts > recovery-report.json
+          sudo "$binary" repeat "$bundle/examples/udp-recovery/scenario.json" --runs 2 --artifacts repetition-artifacts > repetition-report.json
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.target }}
@@ -82,6 +83,8 @@ jobs:
             application-report.json
             recovery-artifacts/
             recovery-report.json
+            repetition-artifacts/
+            repetition-report.json
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: build
