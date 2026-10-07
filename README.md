@@ -61,7 +61,8 @@ copy the [GitHub Actions example](examples/github-actions/application.yml) for C
 The next M2 deliverable is [real transport comparison](docs/TRANSPORT_COMPARISONS.md):
 iroh, reference transports, and independently built custom implementations under
 shared workloads. Current development builds implement the first direct-stream
-cohort; the alpha supplies the earlier runner/evidence foundation. Stable launch also requires
+cohort and [real iroh traversal/relay application tests](docs/IROH_CONNECTIVITY.md);
+the alpha supplies the earlier runner/evidence foundation. Stable launch also requires
 [outside evaluation](docs/EVALUATION.md). See the
 [milestone release and launch plan](docs/ROADMAP.md) for the release gates.
 

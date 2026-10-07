@@ -45,10 +45,10 @@ cp "$repo/examples/github-actions/application.yml" "$stage/$name/examples/github
 cp "$repo/scripts/check-application-demo.sh" "$stage/$name/scripts/"
 mkdir -p "$stage/$name/examples/transports/src" "$stage/$name/crates/transport-protocol/src"
 cp "$repo/examples/transports/Cargo.toml" "$repo/examples/transports/Cargo.lock" "$repo/examples/transports/build.rs" "$repo/examples/transports/direct.json" "$stage/$name/examples/transports/"
-cp "$repo/examples/transports/src/main.rs" "$stage/$name/examples/transports/src/"
+cp "$repo/examples/transports/src/main.rs" "$repo/examples/transports/src/connectivity.rs" "$stage/$name/examples/transports/src/"
 cp "$repo/crates/transport-protocol/Cargo.toml" "$repo/crates/transport-protocol/Cargo.lock" "$stage/$name/crates/transport-protocol/"
 cp "$repo/crates/transport-protocol/src/lib.rs" "$stage/$name/crates/transport-protocol/src/"
-cp "$repo/scripts/check-transport-adapters.sh" "$repo/scripts/check-transport-comparison.sh" "$stage/$name/scripts/"
+cp "$repo/scripts/check-transport-adapters.sh" "$repo/scripts/check-transport-comparison.sh" "$repo/scripts/check-iroh-connectivity.sh" "$stage/$name/scripts/"
 tar -czf "$archive" -C "$stage" "$name"
 (cd -- "$output" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 printf '%s\n' "$archive"

@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/iroh-connectivity-suite-v1.schema.json",
+  "title": "Verified iroh connectivity suite version 1",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "iroh_connectivity_suite"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "attempts": {
+      "type": "array",
+      "items": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "case": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{32}$"
+          },
+          "a": {
+            "enum": [
+              "preserve",
+              "random",
+              "udp-blocked"
+            ]
+          },
+          "b": {
+            "enum": [
+              "preserve",
+              "random",
+              "udp-blocked"
+            ]
+          },
+          "policy": {
+            "enum": [
+              "automatic",
+              "relay_only"
+            ]
+          },
+          "outcome": {
+            "enum": [
+              "verified_delivery",
+              "expected_relay_outage"
+            ]
+          },
+          "selected_path": {
+            "enum": [
+              "direct",
+              "relay"
+            ]
+          },
+          "relay_interrupted": {
+            "type": "boolean"
+          },
+          "verified_exchanges": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "bulk_verified_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "adapter_source_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "evidence_directory": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "case",
+          "run_id",
+          "a",
+          "b",
+          "policy",
+          "outcome",
+          "selected_path",
+          "relay_interrupted",
+          "verified_exchanges",
+          "bulk_verified_bytes",
+          "adapter_source_sha256",
+          "evidence_directory"
+        ]
+      }
+    },
+    "cancellation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "exit_code": {
+          "const": 130
+        },
+        "interrupted": {
+          "const": true
+        },
+        "capture_complete": {
+          "const": true
+        },
+        "namespaces_cleaned": {
+          "const": true
+        },
+        "evidence_directory": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "exit_code",
+        "interrupted",
+        "capture_complete",
+        "namespaces_cleaned",
+        "evidence_directory"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "complete",
+    "attempts"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "complete": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "cancellation"
+        ]
+      }
+    }
+  ]
+}

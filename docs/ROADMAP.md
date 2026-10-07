@@ -65,9 +65,12 @@ support this preview. The [transport comparison plan](TRANSPORT_COMPARISONS.md)
 moves iroh, a plain QUIC reference and generic external adapters into M2. The direct-stream
 [comparison runner and iroh/Quinn adapters](ADAPTERS.md) now implement normalized
 application timings, verified bulk goodput, rotated runs and preserved evidence in
-development builds. Real local-relay/traversal cases remain before the M2 comparison
-gate; the alpha does not claim the new comparison features. Outside evaluation remains
-a launch check. Composable network changes follow in M3; broader protocol coverage
+development builds. [Real local iroh connectivity cases](IROH_CONNECTIVITY.md) now
+exercise two NATed peers, automatic/forced relay policy, blocked UDP and relay
+interruption with verified delivery and selected-path evidence through application
+scenarios. They are separate from direct-stream performance comparisons; generic
+cross-stack connectivity cohorts remain further work. The alpha predates both additions.
+Outside evaluation remains a launch check. Composable network changes follow in M3; broader protocol coverage
 follows in M4.
 
 Exit criteria:

@@ -25,6 +25,7 @@ cargo fmt --check --manifest-path examples/transports/Cargo.toml
 cargo test --locked --manifest-path crates/transport-protocol/Cargo.toml
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
+sudo scripts/check-iroh-connectivity.sh ./target/debug/natbench ./examples/transports/target/release/natbench-iroh-connectivity ./iroh-001
 sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" \
   cargo test --locked -- --include-ignored --test-threads=1
 ```
