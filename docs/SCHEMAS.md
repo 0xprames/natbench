@@ -166,3 +166,19 @@ are documented in [the adapter guide](ADAPTERS.md). Comparison report completion
 is independent of success: require exit 0, complete true and interrupted false.
 Application inputs 1–3, suite report 2, repetition report 1 and capture manifest 1
 retain their versions. Application exit timeline events gain an additive exit_code.
+
+## Standalone iroh connectivity example
+
+[Iroh connectivity requests](../schemas/iroh-connectivity-request-v1.schema.json)
+and [JSONL events](../schemas/iroh-connectivity-event-v1.schema.json) use independent
+schema 1 kinds `iroh_connectivity_request` and `iroh_connectivity_event`. Inputs
+are closed; events accept additive metadata. The relay has null run_id/role/policy;
+peer events identify the attempt and role. Path snapshots and verified byte/sequence
+assertions are described in [the example guide](IROH_CONNECTIVITY.md). This is an
+example-specific format, not an extension of the direct comparison contract.
+[Peer bootstrap](../schemas/iroh-connectivity-peer-v1.schema.json) uses kind
+`iroh_connectivity_peer`, schema 1. The verifier writes
+[the suite summary](../schemas/iroh-connectivity-suite-v1.schema.json), kind
+`iroh_connectivity_suite`, schema 1, with separate expected outages and a cancellation
+result; require its exit 0 and complete true.
+Core scenario/report versions retain their existing semantics.

@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/iroh-connectivity-request-v1.schema.json",
+  "title": "Standalone iroh connectivity request version 1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{32}$"
+    },
+    "role": {
+      "enum": [
+        "server",
+        "client"
+      ]
+    },
+    "deadline_ms": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 30000
+    },
+    "workload": {
+      "$ref": "#/$defs/workload"
+    },
+    "kind": {
+      "const": "iroh_connectivity_request"
+    },
+    "policy": {
+      "enum": [
+        "automatic",
+        "relay_only"
+      ]
+    },
+    "expected_path": {
+      "enum": [
+        "direct",
+        "relay",
+        "any"
+      ]
+    },
+    "interrupt_relay": {
+      "type": "boolean"
+    },
+    "peer_file": {
+      "type": "string",
+      "pattern": "^/"
+    },
+    "certificate_file": {
+      "type": "string",
+      "pattern": "^/"
+    },
+    "resume_file": {
+      "type": "string",
+      "pattern": "^/"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "role",
+    "deadline_ms",
+    "workload",
+    "kind",
+    "policy",
+    "expected_path",
+    "interrupt_relay",
+    "peer_file",
+    "certificate_file",
+    "resume_file"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "workload": {
+      "type": "object",
+      "properties": {
+        "payload_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "warmup_messages": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "measured_messages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "bulk_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216
+        }
+      },
+      "required": [
+        "payload_bytes",
+        "warmup_messages",
+        "measured_messages",
+        "bulk_bytes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "policy": {
+            "const": "relay_only"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "expected_path": {
+            "enum": [
+              "relay",
+              "any"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

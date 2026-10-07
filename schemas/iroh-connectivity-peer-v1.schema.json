@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/iroh-connectivity-peer-v1.schema.json",
+  "title": "Standalone iroh peer bootstrap version 1",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "iroh_connectivity_peer"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{32}$"
+    },
+    "policy": {
+      "enum": [
+        "automatic",
+        "relay_only"
+      ]
+    },
+    "endpoint_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "relay_url": {
+      "const": "https://198.18.0.1:8443/"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "policy",
+    "endpoint_id",
+    "relay_url"
+  ]
+}

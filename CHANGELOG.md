@@ -2,6 +2,12 @@
 
 ## 0.2.0 development
 
+- Standalone real iroh relay/address-discovery and two-NATed-peer scenarios verify
+  automatic/forced paths, blocked-UDP relay delivery, fresh data after relay shutdown
+  on an established direct connection, and expected relay-dependent delivery failure.
+  A verifier checks selected-path/application evidence and live-fixture cancellation;
+  Linux/x86-64/ARM64 CI and extracted source archives exercise the cases.
+
 - `compare` runs matched direct reliable-stream workloads through external executable
   adapters, rotating order and retaining per-attempt JSON/JUnit/logs/timelines/PCAPs.
 - Independent pinned iroh/Quinn adapters verify fresh message and bulk payload bytes;

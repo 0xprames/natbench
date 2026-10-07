@@ -142,3 +142,11 @@ incomplete/nonfinite metrics and incompatible readiness become adapter errors.
 These parsing limits do not impose a disk quota on application logs. Reference
 sources live in [the standalone adapter crate](../examples/transports/) and
 [the shared protocol crate](../crates/transport-protocol/).
+
+## Real iroh connectivity coverage
+
+The separately built [iroh connectivity example](IROH_CONNECTIVITY.md) exercises
+two NATed peers, a real local relay/address-discovery service, automatic and forced
+relay policies, blocked UDP and relay interruption. Run its verifier through
+application scenarios. These tests do not change the direct-stream comparison
+contract or mix relay samples into its performance summaries.

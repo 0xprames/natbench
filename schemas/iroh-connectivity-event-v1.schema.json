@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/iroh-connectivity-event-v1.schema.json",
+  "title": "Standalone iroh connectivity event version 1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "iroh_connectivity_event"
+    },
+    "run_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{32}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "role": {
+      "enum": [
+        "client",
+        "server",
+        null
+      ]
+    },
+    "iroh_version": {
+      "const": "1.3.0"
+    },
+    "relay_version": {
+      "const": "1.3.0"
+    },
+    "adapter_source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rustc": {
+      "type": "string"
+    },
+    "build_profile": {
+      "type": "string"
+    },
+    "policy": {
+      "enum": [
+        "automatic",
+        "relay_only",
+        null
+      ]
+    },
+    "event": {
+      "enum": [
+        "ready",
+        "connected",
+        "received",
+        "verified",
+        "path_observed",
+        "before_relay_stop",
+        "after_relay_stop",
+        "completed",
+        "failed",
+        "path_selected"
+      ]
+    },
+    "detail": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "role",
+    "iroh_version",
+    "relay_version",
+    "adapter_source_sha256",
+    "rustc",
+    "build_profile",
+    "policy",
+    "event",
+    "detail"
+  ],
+  "additionalProperties": true
+}

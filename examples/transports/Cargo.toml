@@ -6,10 +6,20 @@ rust-version = "1.91"
 license = "MIT"
 description = "Standalone iroh and Quinn adapters for matched natbench workloads"
 
+[[bin]]
+name = "natbench-transport-adapters"
+path = "src/main.rs"
+
+[[bin]]
+name = "natbench-iroh-connectivity"
+path = "src/connectivity.rs"
+
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 iroh = { version = "=1.3.0", default-features = false, features = ["tls-ring"] }
+iroh-relay = { version = "=1.3.0", default-features = false, features = ["server", "tls-ring"] }
+serde = { version = "1", features = ["derive"] }
 natbench-transport-protocol = { path = "../../crates/transport-protocol" }
 quinn = { version = "=0.11.12", default-features = false, features = ["rustls-ring", "runtime-tokio"] }
 rcgen = { version = "=0.14.10", default-features = false, features = ["ring"] }

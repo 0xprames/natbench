@@ -18,7 +18,7 @@ jobs:
           - runner: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +32,7 @@ jobs:
       - run: go build -o examples/udp-echo/udp-echo examples/udp-echo/main.go
       - run: cargo test --locked
       - run: cargo test --locked --manifest-path crates/transport-protocol/Cargo.toml
+      - run: cargo test --locked --manifest-path examples/transports/Cargo.toml --bin natbench-iroh-connectivity
       - run: cargo build --release --locked --manifest-path examples/transports/Cargo.toml
       - run: sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" "NATBENCH_TEST_ARTIFACTS=$PWD/cancellation-artifacts" cargo test --locked -- --include-ignored --test-threads=1
       - run: cargo build --release --locked --target "$TARGET"
@@ -66,6 +67,7 @@ jobs:
           bundle=$(dirname "$binary")
           cargo build --release --locked --manifest-path "$bundle/examples/transports/Cargo.toml" --target-dir "$PWD/examples/transports/target"
           sudo "$bundle/scripts/check-transport-comparison.sh" "$binary" "$PWD/examples/transports/target/release/natbench-transport-adapters" transport-comparison-artifacts
+          sudo "$bundle/scripts/check-iroh-connectivity.sh" "$binary" "$PWD/examples/transports/target/release/natbench-iroh-connectivity" iroh-connectivity-artifacts
           go build -o "$bundle/examples/udp-echo/udp-echo" "$bundle/examples/udp-echo/main.go"
           sudo "$bundle/scripts/check-application-demo.sh" "$binary" diagnostic-demo-artifacts
           rustc --edition 2021 -D warnings "$bundle/examples/udp-recovery/main.rs" -o "$bundle/examples/udp-recovery/udp-recovery"
@@ -74,7 +76,7 @@ jobs:
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -101,6 +103,7 @@ jobs:
             repetition-report.json
             diagnostic-demo-artifacts/
             transport-comparison-artifacts/
+            iroh-connectivity-artifacts/
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: build

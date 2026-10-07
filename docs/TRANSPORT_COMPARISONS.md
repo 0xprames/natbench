@@ -8,7 +8,9 @@ and retains these experiments; it is also useful to run them interactively.
 Current development builds implement the executable request/event contract,
 standalone pinned iroh/Quinn adapters and `natbench compare` for matched direct
 client-to-WAN workloads. See [usage, measurements and adapter integration](ADAPTERS.md).
-Local relay/traversal and changing-network cohorts below remain planned.
+[Local iroh relay/traversal tests](IROH_CONNECTIVITY.md) now run through application
+scenarios with selected-path and verified-delivery evidence. Changing-network and
+generic cross-stack connectivity cohorts below remain planned.
 v0.2.0-alpha.1 predates these additions. Existing case wall times continue to
 measure fixture execution, independently of adapter application timings.
 
