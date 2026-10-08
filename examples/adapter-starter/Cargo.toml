@@ -1,0 +1,18 @@
+[package]
+name = "natbench-adapter-starter"
+version = "0.3.0-dev"
+edition = "2021"
+rust-version = "1.91"
+license = "MIT"
+description = "Independent Rust starter for natbench executable transport adapters"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+natbench-transport-protocol = { path = "../../crates/transport-protocol" }
+serde_json = "1"
+socket2 = { version = "0.6", features = ["all"] }
+tokio = { version = "=1.53.2", features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }
+
+[build-dependencies]
+sha2 = "0.10"

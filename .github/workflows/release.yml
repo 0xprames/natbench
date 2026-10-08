@@ -34,6 +34,8 @@ jobs:
       - run: cargo test --locked --manifest-path crates/transport-protocol/Cargo.toml
       - run: cargo test --locked --manifest-path examples/transports/Cargo.toml --bins
       - run: cargo build --release --locked --manifest-path examples/transports/Cargo.toml
+      - run: cargo test --locked --manifest-path examples/adapter-starter/Cargo.toml
+      - run: cargo build --release --locked --manifest-path examples/adapter-starter/Cargo.toml
       - run: sudo env "PATH=$PATH" "CARGO_HOME=$HOME/.cargo" "RUSTUP_HOME=$HOME/.rustup" "NATBENCH_TEST_ARTIFACTS=$PWD/cancellation-artifacts" cargo test --locked -- --include-ignored --test-threads=1
       - run: cargo build --release --locked --target "$TARGET"
         env:
@@ -75,7 +77,11 @@ jobs:
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-regression-gates.sh" "$binary" transport-comparison-artifacts/direct/report.json regression-artifacts
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-iroh-connectivity.sh" "$binary" "$bundle/bin/natbench-iroh-connectivity" iroh-connectivity-artifacts
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-network-comparison.sh" "$binary" "$bundle/bin/natbench-transport-adapters" network-comparison-artifacts
+          sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-adapter-starter.sh" "$binary" "$bundle/bin/natbench-adapter-starter" adapter-starter-artifacts
           # Included source still rebuilds independently from the controller.
+          "$bundle/scripts/new-adapter.sh" standalone-adapter custom-transport-adapter
+          cargo build --release --locked --manifest-path standalone-adapter/Cargo.toml
+          sudo "$binary" conform standalone-adapter/adapter.json --capture --artifacts standalone-adapter-artifacts > standalone-adapter-report.json
           cargo build --release --locked --manifest-path "$bundle/examples/transports/Cargo.toml" --target-dir "$PWD/examples/transports/target"
           go build -o "$bundle/examples/udp-echo/udp-echo" "$bundle/examples/udp-echo/main.go"
           sudo "$bundle/scripts/check-application-demo.sh" "$binary" diagnostic-demo-artifacts
@@ -85,7 +91,7 @@ jobs:
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts bundled-comparison-artifacts network-comparison-artifacts regression-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts bundled-comparison-artifacts network-comparison-artifacts regression-artifacts adapter-starter-artifacts standalone-adapter-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -117,6 +123,9 @@ jobs:
             iroh-connectivity-artifacts/
             network-comparison-artifacts/
             regression-artifacts/
+            adapter-starter-artifacts/
+            standalone-adapter-artifacts/
+            standalone-adapter-report.json
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: build

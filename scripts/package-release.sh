@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Bundle already-built native binaries; never replace existing release evidence.
 set -euo pipefail
-if [[ $# != 3 && $# != 4 ]]; then
-  echo "usage: $0 BINARY TARGET OUTPUT_DIRECTORY [ADAPTER_BINARY_DIRECTORY]" >&2
+if [[ $# != 3 && $# != 4 && $# != 5 ]]; then
+  echo "usage: $0 BINARY TARGET OUTPUT_DIRECTORY [ADAPTER_BINARY_DIRECTORY] [STARTER_BINARY_DIRECTORY]" >&2
   exit 2
 fi
 binary=$(realpath "$1")
@@ -30,6 +30,12 @@ for name in natbench-transport-adapters natbench-iroh-connectivity; do
     exit 2
   fi
 done
+starter=$(realpath "${5:-$repo/examples/adapter-starter/target/release}")
+test -x "$starter/natbench-adapter-starter"
+if [[ "$("$starter/natbench-adapter-starter" --version)" != "natbench-adapter-starter $version" ]]; then
+  echo "starter version differs from natbench" >&2
+  exit 2
+fi
 mkdir -p -- "$3"
 output=$(realpath "$3")
 name="natbench-${version}-${target}"
@@ -43,7 +49,7 @@ trap 'rm -rf -- "$stage"' EXIT
 mkdir -p -- "$stage/$name"
 install -m 755 -- "$binary" "$stage/$name/natbench"
 mkdir -p -- "$stage/$name/bin"
-install -m 755 -- "$adapters/natbench-transport-adapters" "$adapters/natbench-iroh-connectivity" "$stage/$name/bin/"
+install -m 755 -- "$adapters/natbench-transport-adapters" "$adapters/natbench-iroh-connectivity" "$starter/natbench-adapter-starter" "$stage/$name/bin/"
 cp -- "$repo/LICENSE" "$repo/README.md" "$repo/CHANGELOG.md" "$repo/CONTRIBUTING.md" "$stage/$name/"
 cp -R -- "$repo/docs" "$repo/scenarios" "$repo/schemas" "$stage/$name/"
 mkdir -p "$stage/$name/examples/udp-echo"
@@ -51,7 +57,7 @@ cp "$repo/examples/udp-echo/main.go" "$repo/examples/udp-echo/scenario.json" "$r
 mkdir -p "$stage/$name/examples/udp-recovery"
 cp "$repo/examples/udp-recovery/main.rs" "$repo/examples/udp-recovery/scenario.json" "$stage/$name/examples/udp-recovery/"
 mkdir -p "$stage/$name/examples/github-actions" "$stage/$name/scripts"
-cp "$repo/examples/github-actions/application.yml" "$repo/examples/github-actions/transports.yml" "$stage/$name/examples/github-actions/"
+cp "$repo/examples/github-actions/application.yml" "$repo/examples/github-actions/transports.yml" "$repo/examples/github-actions/adapter.yml" "$stage/$name/examples/github-actions/"
 cp "$repo/scripts/check-application-demo.sh" "$stage/$name/scripts/"
 mkdir -p "$stage/$name/examples/transports/src" "$stage/$name/crates/transport-protocol/src"
 cp "$repo/examples/transports/Cargo.toml" "$repo/examples/transports/Cargo.lock" "$repo/examples/transports/build.rs" "$repo/examples/transports/direct.json" "$repo/examples/transports/conditions.json" "$repo/examples/transports/regression-policy.json" "$stage/$name/examples/transports/"
@@ -59,6 +65,16 @@ cp "$repo/examples/transports/src/main.rs" "$repo/examples/transports/src/tcp.rs
 cp "$repo/crates/transport-protocol/Cargo.toml" "$repo/crates/transport-protocol/Cargo.lock" "$stage/$name/crates/transport-protocol/"
 cp "$repo/crates/transport-protocol/src/lib.rs" "$stage/$name/crates/transport-protocol/src/"
 cp "$repo/scripts/check-transport-adapters.sh" "$repo/scripts/check-transport-comparison.sh" "$repo/scripts/check-iroh-connectivity.sh" "$repo/scripts/check-network-comparison.sh" "$repo/scripts/check-regression-gates.sh" "$stage/$name/scripts/"
+mkdir -p "$stage/$name/examples/adapter-starter/src"
+cp "$repo/examples/adapter-starter/Cargo.toml" "$repo/examples/adapter-starter/Cargo.lock" "$repo/examples/adapter-starter/build.rs" "$repo/examples/adapter-starter/adapter.json" "$stage/$name/examples/adapter-starter/"
+cp "$repo/examples/adapter-starter/src/main.rs" "$repo/examples/adapter-starter/src/transport.rs" "$stage/$name/examples/adapter-starter/src/"
+cp "$repo/scripts/new-adapter.sh" "$repo/scripts/check-adapter-starter.sh" "$stage/$name/scripts/"
+python3 - "$stage/$name/examples/adapter-starter/adapter.json" <<'PYSTARTER'
+import json,pathlib,sys
+path=pathlib.Path(sys.argv[1]);config=json.loads(path.read_text())
+config['adapter']['argv'][0]='../../bin/natbench-adapter-starter'
+path.write_text(json.dumps(config,indent=2)+'\n')
+PYSTARTER
 # Resolve the shipped comparison against the bundled executables, retaining the
 # source example's workload and adapter arguments.
 python3 - "$stage/$name/examples/transports" <<'PYCONFIG'

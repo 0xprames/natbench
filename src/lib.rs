@@ -6,6 +6,7 @@ pub mod assess;
 pub mod bench;
 mod capture;
 pub mod compare;
+pub mod conform;
 pub mod doctor;
 pub mod lab;
 mod network;

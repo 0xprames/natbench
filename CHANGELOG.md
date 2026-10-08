@@ -2,6 +2,13 @@
 
 ## 0.3.0 development
 
+- An independent Rust adapter generator copies source, locked dependencies and the
+  small protocol into a separate project with a replaceable TCP transport module
+  and CI workflow. Native bundles include its executable and generator.
+- `conform` checks one adapter's lifecycle/contract and real workload bounds behind
+  preserve/random NAT, plus explicit total-loss failures. Unsupported and incomplete
+  checks remain nonpassing; cancellation/stale-output tests preserve diagnostics.
+
 - Offline `assess` gates every comparison cohort against explicit delivery-rate,
   p95 application RTT, minimum verified-goodput and sample requirements. Saved
   baselines require matched experiments/machine/settings with explicit recorded
