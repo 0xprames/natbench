@@ -30,7 +30,7 @@ adapters from their Cargo build directory:
 ```sh
 cargo build --locked
 cargo build --release --locked --manifest-path examples/transports/Cargo.toml
-sudo ./target/debug/natbench compare examples/transports/direct.json --runs 4 --capture --artifacts ./comparison-001
+sudo ./target/debug/natbench compare examples/transports/direct.json --runs 3 --capture --artifacts ./comparison-001
 ```
 
 The example compares reliable request/response streams and a verified 1 MiB bulk
@@ -38,7 +38,10 @@ transfer behind preserve and random NATs. The receiver is on the WAN, at
 198.18.0.1:9443; the client is behind router A. Router B has no application role
 in this experiment. There is no peer hole punching, discovery or relay in this
 cohort. Peer information is exchanged through a declared controller-owned file.
-Both implementations create fresh endpoints and use their own sockets/protocol.
+Current source adds a plain TCP baseline to both example configurations; the
+published alpha.2 contains iroh and Quinn only. All three source adapters create
+fresh endpoints and use their own sockets/protocol. Choose `--runs 3` (or a multiple
+of three) for balanced adapter order with the source configuration.
 
 ## What the numbers mean
 
@@ -46,14 +49,15 @@ Both implementations create fresh endpoints and use their own sockets/protocol.
   endpoint to verifying the first echoed application frame. Server readiness and
   loading the provided peer information precede this interval.
 - **Message RTT:** sequential request/response samples after the declared warm-up.
-  Each reference exchange opens a new bidirectional stream on the same connection.
+  Iroh and Quinn open a new bidirectional stream per exchange on the same
+  connection; TCP exchanges length-prefixed frames on one connection.
   Payload construction precedes timing; response verification finishes the interval.
 - **Verified bulk goodput:** bulk payload bytes divided by the time to send a stream,
   verify its entire contents at the receiver, and receive/verify a small acknowledgement.
   Protocol framing is excluded from the byte numerator. This includes receiver
   verification and acknowledgement, rather than measuring a send-buffer write.
 
-Every frame carries a fresh attempt ID and sequence. Both reference implementations
+Every frame carries a fresh attempt ID and sequence. All reference implementations
 verify the same deterministic payload bytes before responding. The bulk receiver
 acknowledges only verified data. Warm-up samples are excluded from message RTT.
 Whole-fixture duration remains in the nested suite evidence; it is not transport
@@ -72,6 +76,29 @@ Versions, compiler, build profile, adapter source/lock fingerprint and settings 
 configured implementations; it does not isolate the overhead of one wrapper over
 an identical QUIC engine/security configuration. Iroh's public lookup/relay services
 are disabled. No public infrastructure is required.
+
+Current source's `--transport tcp` baseline uses Linux kernel TCP with no TLS,
+encryption or endpoint authentication. It uses one fresh IPv4 connection and a
+4-byte big-endian length prefix on every request and response. Receivers reject
+invalid lengths before allocation and verify the attempt ID, sequence and payload
+before responding. Framing work is included in timing and excluded from the
+verified-byte numerator. TCP and QUIC share application semantics but have
+different stream and security semantics; these results do not isolate transport
+implementation overhead.
+
+TCP enables `TCP_NODELAY` at both endpoints and leaves congestion control and
+buffers at kernel defaults. Implementation metadata records the Linux kernel
+release, default socket congestion algorithm, explicit settings, framing and
+security semantics. The peer bootstrap includes listener socket options; client
+path evidence includes its connected socket after delivery. Server stderr records
+accepted and fully verified connection snapshots. These read back congestion
+control, `TCP_NODELAY`, keepalive, buffer sizes and addresses; buffer autotuning can
+change sizes between snapshots. The final server snapshot precedes the bulk ACK
+and is included in bulk timing, so completion cannot race with server teardown. See [Linux TCP socket options](https://man7.org/linux/man-pages/man7/tcp.7.html).
+The [comparison verifier](../scripts/check-transport-comparison.sh) checks that
+TCP delivers when UDP is blocked while the direct QUIC adapters fail.
+[Network-condition verification](NETWORK_CONDITIONS.md) also exercises TCP
+with delay/random loss and confirms deadline failures under total loss.
 
 Use release adapter builds and an appropriate, otherwise quiet host for performance
 investigation. Packet collection can affect timings; its settings are recorded.

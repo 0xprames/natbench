@@ -24,7 +24,7 @@ for direction in ['client_to_server','server_to_client']:
     negative['cases'].append(case)
 (root/'total-loss.json').write_text(json.dumps(negative))
 PY
-"$binary" compare "$artifacts/conditions.json" --runs 2 --capture --artifacts "$artifacts/conditions" > "$artifacts/conditions.stdout.json"
+"$binary" compare "$artifacts/conditions.json" --runs 3 --capture --artifacts "$artifacts/conditions" > "$artifacts/conditions.stdout.json"
 status=0
 "$binary" compare "$artifacts/total-loss.json" --runs 1 --capture --artifacts "$artifacts/total-loss" > "$artifacts/total-loss.stdout.json" || status=$?
 test "$status" -eq 1
@@ -32,14 +32,14 @@ python3 - "$artifacts" <<'PY'
 import json,pathlib,sys,xml.etree.ElementTree as ET
 root=pathlib.Path(sys.argv[1])
 positive=json.loads((root/'conditions/report.json').read_text());negative=json.loads((root/'total-loss/report.json').read_text())
-assert positive['complete'] and not positive['interrupted'] and len(positive['attempts'])==16
+assert positive['complete'] and not positive['interrupted'] and len(positive['attempts'])==36
 assert all(a['outcome']=='passed' for a in positive['attempts'])
-assert negative['complete'] and not negative['interrupted'] and len(negative['attempts'])==4
+assert negative['complete'] and not negative['interrupted'] and len(negative['attempts'])==6
 assert all(a['outcome']=='transport_failed' and a['measurement'] is None for a in negative['attempts'])
 for label,report in [('conditions',positive),('total-loss',negative)]:
     cases={c['name']:c for c in report['case_conditions']}
     xml=ET.parse(root/label/'junit.xml').getroot()
-    assert int(xml.attrib['tests'])==len(report['planned']) and int(xml.attrib['failures'])==(4 if label=='total-loss' else 0)
+    assert int(xml.attrib['tests'])==len(report['planned']) and int(xml.attrib['failures'])==(6 if label=='total-loss' else 0)
     for plan,attempt in zip(report['planned'],report['attempts']):
         case=root/label/plan['artifacts_directory']/'evidence/case-000'
         configured=cases[plan['case']]['network']
@@ -74,5 +74,5 @@ for label,report in [('conditions',positive),('total-loss',negative)]:
                 assert min(m['message_rtt_seconds'])>=minimum*.8,(plan,m)
         else:
             assert attempt['messages'] and any('connect:' in message for message in attempt['messages'])
-print('Verified 16 real shaped deliveries, four directional total-loss failures, kernel settings/counters and retained captures.')
+print('Verified 36 real shaped deliveries, six directional total-loss failures, kernel settings/counters and retained captures.')
 PY

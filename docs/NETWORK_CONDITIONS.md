@@ -7,11 +7,11 @@ behavior. The published alpha.2 predates these controls; build current source.
 ```sh
 cargo build --locked
 cargo build --release --locked --manifest-path examples/transports/Cargo.toml
-sudo ./target/debug/natbench compare examples/transports/conditions.json --runs 4 --capture --artifacts ./conditions-001
+sudo ./target/debug/natbench compare examples/transports/conditions.json --runs 3 --capture --artifacts ./conditions-001
 ```
 
-The example uses real iroh/Quinn adapters with an unimpaired reference, upload-only
-and download-only delay, and combined delay/random loss. Both adapters receive the
+The example uses real iroh/Quinn/TCP adapters with an unimpaired reference, upload-only
+and download-only delay, and combined delay/random loss. All adapters receive the
 same requested workload and network condition; their loss schedules are not identical.
 The [verifier](../scripts/check-network-comparison.sh) additionally checks total
 loss in each direction, kernel state/counters and packet evidence. Linux and native

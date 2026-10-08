@@ -13,7 +13,7 @@ python3 - "$artifacts" "$adapter" <<'PY'
 import json, pathlib, secrets, sys
 root, adapter = pathlib.Path(sys.argv[1]), sys.argv[2]
 workload = dict(payload_bytes=128, warmup_messages=2, measured_messages=5, bulk_bytes=262144)
-for transport in ['iroh', 'quinn']:
+for transport in ['iroh', 'quinn', 'tcp']:
     for profile in ['preserve', 'random', 'udp-blocked']:
         directory = root / f'{transport}-{profile}'
         directory.mkdir()
@@ -33,11 +33,11 @@ for transport in ['iroh', 'quinn']:
         case = dict(name=f'{transport} direct stream on {profile}', a=profile, b='preserve', router_input='drop',
                     processes=[process('server'),process('client')],
                     steps=[dict(action='start',process='server'),
-                           dict(action='run',process='client',expect_exit=1 if profile=='udp-blocked' else 0),
+                           dict(action='run',process='client',expect_exit=1 if profile=='udp-blocked' and transport!='tcp' else 0),
                            dict(action='stop',process='server')])
         (directory / 'scenario.json').write_text(json.dumps(dict(schema_version=2,cases=[case])))
 PY
-for transport in iroh quinn; do
+for transport in iroh quinn tcp; do
   for profile in preserve random udp-blocked; do
     directory="$artifacts/$transport-$profile"
     "$binary" test "$directory/scenario.json" --capture --artifacts "$directory/evidence" > "$directory/stdout.json"
@@ -55,7 +55,7 @@ for directory in sorted(root.iterdir()):
     assert event['schema_version'] == 1 and event['kind'] == 'transport_event'
     assert event['run_id'] == request['run_id']
     assert json.loads((case / 'capture.json').read_text())['complete']
-    if directory.name.endswith('udp-blocked'):
+    if directory.name.endswith('udp-blocked') and not directory.name.startswith('tcp-'):
         assert event['event'] == 'failed' and event['phase'] == 'connect', event
     else:
         assert event['event'] == 'completed', event
