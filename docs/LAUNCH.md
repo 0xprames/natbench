@@ -1,7 +1,7 @@
 # Application runner preview launch (v0.2.0-alpha.1)
 
 This brief records the first application preview. The current transport preview is
-[v0.2.0-alpha.2](releases/v0.2.0-alpha.2.md); use its supported capabilities and
+[v0.3.0-alpha.1](releases/v0.3.0-alpha.1.md); use its supported capabilities and
 install commands when introducing the current version. The earlier verification
 and discovery baseline below describe v0.2.0-alpha.1.
 

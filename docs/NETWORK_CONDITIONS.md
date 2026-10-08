@@ -1,8 +1,8 @@
 # Declare delay and loss in comparisons and application scenarios
 
-Development builds after v0.2.0-alpha.2 add comparison input **2** and application
+The v0.3.0-alpha.1 preview includes comparison input **2** and application
 input **4**. Existing comparison input 1 and application inputs 2/3 retain their
-behavior. The published alpha.2 predates these controls; build current source.
+behavior. The older alpha.2 predates these controls. See [native-bundle usage](TRANSPORT_QUICKSTART.md).
 
 ```sh
 cargo build --locked

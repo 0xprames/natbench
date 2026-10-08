@@ -1,8 +1,8 @@
 # Gate transport delivery and performance
 
-Current development source adds `natbench assess`. It reads saved comparison
+The v0.3.0-alpha.1 preview includes `natbench assess`. It reads saved comparison
 reports without starting a fixture or requiring root, network tools, or adapters.
-The published v0.2.0-alpha.2 predates this command and its report metadata.
+The older v0.2.0-alpha.2 predates this command and its report metadata.
 
 ```sh
 cargo build --locked

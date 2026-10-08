@@ -1,6 +1,6 @@
 [package]
 name = "natbench"
-version = "0.3.0-dev"
+version = "0.3.0-alpha.1"
 edition = "2021"
 license = "MIT"
 description = "Test connectivity and compare transport workloads in isolated Linux networks"

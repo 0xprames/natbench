@@ -1,8 +1,8 @@
 # Transport delivery queue
 
 Continue shipping independently useful development slices and previews while
-outside evaluation for stable v0.2.0 is pending. Current public binaries are
-v0.2.0-alpha.2; they do not include the development network controls or TCP baseline.
+outside evaluation for stable v0.2.0 is pending. The v0.3.0-alpha.1 preview bundles the first slices below; the remaining
+composability/rebinding gates stay open.
 
 ## 1. Network conditions
 
@@ -12,7 +12,7 @@ v0.2.0-alpha.2; they do not include the development network controls or TCP base
 - [ ] Follow-up slices: bounded jitter, bandwidth and MTU controls, composed with
   NAT profiles; declare scope and supported capabilities without silently dropping
   an unsupported request.
-- [ ] Publish a preview after native distribution/install validation.
+- [x] First slice included in the native v0.3.0-alpha.1 preview.
 
 First-slice acceptance: real iroh/Quinn/TCP workloads prove upload and download delay,
 verified delivery with loss, and explicit failures under total loss. Old inputs
@@ -28,7 +28,7 @@ from transport outcomes. Kernel evidence survives failure/interruption.
 - [x] Verification: TCP delivers through blocked UDP while direct QUIC fails; all
   three deliver under directional delay/random loss and fail under total loss.
   Native archive CI tests the packaged executable and rebuildable source.
-- [ ] Publish the TCP baseline and network controls in a validated native preview.
+- [x] TCP baseline and network controls included in the native preview.
 
 Comparable workload semantics do not imply equal security or pure implementation
 overhead. Socket buffer values are snapshots because kernel autotuning can change
@@ -42,7 +42,7 @@ them; request/response framing differs between TCP and QUIC.
 - [x] Saved comparisons: explicit relative allowances, matched workload/topology/
   network/machine/settings metadata and audited build-version allowances.
   Raw reports/policy and JSON/JUnit are retained.
-- [ ] Publish the command and example policy in a validated native preview.
+- [x] Command and example policy included in the native preview.
 
 See [gate semantics and saved-baseline guidance](REGRESSION_GATES.md). Relative
 change and absolute requirements are separate; noise allowances are explicit.
@@ -54,7 +54,7 @@ change and absolute requirements are separate; noise allowances are explicit.
 - [x] Real iroh/Quinn/TCP same-connection recovery after directional/bidirectional
   outages, fresh post-event message/bulk verification, and persistent-loss negatives.
 - [ ] Relay restart, NAT rebinding and explicit reconnecting recovery policies.
-- [ ] Publish the example, binary and verifier in a validated native preview.
+- [x] Recovery example, binary and verifier included in the native preview.
 
 See [recovery semantics and evidence](TRANSPORT_RECOVERY.md). Failed recovery
 attempts retain deadlines/path context without a fabricated interval.
@@ -66,7 +66,7 @@ attempts retain deadlines/path context without a fabricated interval.
 - [x] Single-adapter `conform` checks minimum/typical/maximum workloads behind
   preserve/random NAT and expected total-loss failures. Parsing/lifecycle checks
   share the real fixture runner; unsupported and cancellation stay nonpassing.
-- [ ] Publish the bundled starter, generator and checker in a native preview.
+- [x] Starter, generator and checker included in the native preview.
 
 See [the adapter starter](ADAPTER_STARTER.md). The initial backend is plain TCP;
 other libraries stay separately built. The checker validates contract claims;

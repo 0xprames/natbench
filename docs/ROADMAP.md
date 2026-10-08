@@ -108,9 +108,11 @@ approved message; issue/release preparation does not authorize sending messages.
 
 ## M3 Composable networks and recovery events
 
-Current development slice: [directional delay/random loss](NETWORK_CONDITIONS.md)
-now applies to matched comparisons and ordinary application inputs, with kernel
-evidence preserved through failure/cancellation. The public alpha.2 predates it.
+The [v0.3.0-alpha.1 evaluation checkpoint](releases/v0.3.0-alpha.1.md) bundles
+[directional delay/random loss](NETWORK_CONDITIONS.md), a plain TCP baseline,
+[offline gates](REGRESSION_GATES.md), [fresh outage recovery](TRANSPORT_RECOVERY.md)
+and [independent Rust adapters](ADAPTER_STARTER.md). Native bundles and pinned CI
+workflows support maintainer/outside evaluation; this does not complete M3.
 The [delivery queue](DELIVERY_QUEUE.md) records the accepted network, TCP, regression
 gate, recovery and adapter-starter work; the remaining M3 gates below stay open.
 

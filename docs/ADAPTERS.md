@@ -1,7 +1,7 @@
 # Run matched transport comparisons
 
-The v0.2.0-alpha.2 preview includes `natbench compare`, independent iroh 1.3.0
-and Quinn 0.11.12 adapters, and their native binaries under `bin/`. The core uses
+The v0.3.0-alpha.1 preview includes `natbench compare`, independent iroh 1.3.0
+and Quinn 0.11.12 adapters, a plain TCP baseline, and their native binaries under `bin/`. The core uses
 the small shared request/event contract; it does not link iroh. The older
 v0.2.0-alpha.1 release predates this command.
 
@@ -11,7 +11,7 @@ v0.2.0-alpha.1 release predates this command.
 install the Linux fixture prerequisites and run from the extracted directory:
 
 ```sh
-sudo ./natbench compare examples/transports/direct.json --runs 4 --capture --artifacts ./comparison-001
+sudo ./natbench compare examples/transports/direct.json --runs 3 --capture --artifacts ./comparison-001
 ```
 
 No Rust toolchain is needed. The bundled configuration resolves its adapter
@@ -38,8 +38,7 @@ transfer behind preserve and random NATs. The receiver is on the WAN, at
 198.18.0.1:9443; the client is behind router A. Router B has no application role
 in this experiment. There is no peer hole punching, discovery or relay in this
 cohort. Peer information is exchanged through a declared controller-owned file.
-Current source adds a plain TCP baseline to both example configurations; the
-published alpha.2 contains iroh and Quinn only. All three source adapters create
+Both example configurations include the plain TCP baseline. All three adapters create
 fresh endpoints and use their own sockets/protocol. Choose `--runs 3` (or a multiple
 of three) for balanced adapter order with the source configuration.
 
@@ -200,26 +199,25 @@ relay policies, blocked UDP and relay interruption. Run its verifier through
 application scenarios. These tests do not change the direct-stream comparison
 contract or mix relay samples into its performance summaries.
 
-## Development network conditions
+## Network conditions
 
-Current source adds [comparison input 2](NETWORK_CONDITIONS.md) for explicit delay
+The preview includes [comparison input 2](NETWORK_CONDITIONS.md) for explicit delay
 and random loss in each direction, with kernel settings/counters per attempt. The
 adapter request/workload contract stays at version 1, so existing external adapters
-can participate. Use `examples/transports/conditions.json` after a source build; the
-published alpha.2 predates this configuration.
+can participate. Use `examples/transports/conditions.json` from source or the native bundle.
 
-## Development regression gates
+## Regression gates
 
 Use [offline requirements and saved baselines](REGRESSION_GATES.md) to assess a
-current-source comparison report. All cohorts remain required; delivery, p95 RTT
+preview comparison report. All cohorts remain required; delivery, p95 RTT
 and minimum verified goodput have explicit sample counts. Compatibility checks
 recorded workload, topology, conditions, machine, security and transport settings.
-The published alpha.2 does not include this command or the necessary metadata.
+The older alpha.2 predates this command and its necessary report metadata.
 
 ## Independent Rust starter and conformance
 
-Current source includes [a project generator and `conform` checker](ADAPTER_STARTER.md)
+The preview includes [a project generator and `conform` checker](ADAPTER_STARTER.md)
 for a separately built adapter. It covers declared workload bounds, real delivery
 and total-loss failures with the same contract/lifecycle validation. Start with
 plain TCP, replace the transport module, then add your executable to a comparison.
-The published alpha.2 predates the starter/checker.
+The older alpha.2 predates the starter/checker.
