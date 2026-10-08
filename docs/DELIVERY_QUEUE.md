@@ -49,11 +49,15 @@ change and absolute requirements are separate; noise allowances are explicit.
 
 ## 4. Recovery experiments
 
-Add scheduled network changes, outages, relay restart and NAT rebinding. Verify
-fresh data after each event, measure the event-to-delivery interval and identify
-whether the existing connection survived or a new connection was created. Preserve
-failed recovery attempts, deadlines and actual path evidence. Reuse network-control
-and application lifecycle foundations; include real transport scenarios.
+- [x] First development slice: scheduled link changes in application input 5,
+  fresh case context/atomic markers and retained transition timestamps/kernel state.
+- [x] Real iroh/Quinn/TCP same-connection recovery after directional/bidirectional
+  outages, fresh post-event message/bulk verification, and persistent-loss negatives.
+- [ ] Relay restart, NAT rebinding and explicit reconnecting recovery policies.
+- [ ] Publish the example, binary and verifier in a validated native preview.
+
+See [recovery semantics and evidence](TRANSPORT_RECOVERY.md). Failed recovery
+attempts retain deadlines/path context without a fabricated interval.
 
 ## 5. External adapter starter and conformance checks
 

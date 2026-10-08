@@ -23,7 +23,7 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
   exit 2
 fi
 adapters=$(realpath "${4:-$repo/examples/transports/target/release}")
-for name in natbench-transport-adapters natbench-iroh-connectivity; do
+for name in natbench-transport-adapters natbench-iroh-connectivity natbench-transport-recovery; do
   test -x "$adapters/$name"
   if [[ "$("$adapters/$name" --version)" != "$name $version" ]]; then
     echo "adapter version differs from natbench: $name" >&2
@@ -49,7 +49,7 @@ trap 'rm -rf -- "$stage"' EXIT
 mkdir -p -- "$stage/$name"
 install -m 755 -- "$binary" "$stage/$name/natbench"
 mkdir -p -- "$stage/$name/bin"
-install -m 755 -- "$adapters/natbench-transport-adapters" "$adapters/natbench-iroh-connectivity" "$starter/natbench-adapter-starter" "$stage/$name/bin/"
+install -m 755 -- "$adapters/natbench-transport-adapters" "$adapters/natbench-iroh-connectivity" "$adapters/natbench-transport-recovery" "$starter/natbench-adapter-starter" "$stage/$name/bin/"
 cp -- "$repo/LICENSE" "$repo/README.md" "$repo/CHANGELOG.md" "$repo/CONTRIBUTING.md" "$stage/$name/"
 cp -R -- "$repo/docs" "$repo/scenarios" "$repo/schemas" "$stage/$name/"
 mkdir -p "$stage/$name/examples/udp-echo"
@@ -60,11 +60,11 @@ mkdir -p "$stage/$name/examples/github-actions" "$stage/$name/scripts"
 cp "$repo/examples/github-actions/application.yml" "$repo/examples/github-actions/transports.yml" "$repo/examples/github-actions/adapter.yml" "$stage/$name/examples/github-actions/"
 cp "$repo/scripts/check-application-demo.sh" "$stage/$name/scripts/"
 mkdir -p "$stage/$name/examples/transports/src" "$stage/$name/crates/transport-protocol/src"
-cp "$repo/examples/transports/Cargo.toml" "$repo/examples/transports/Cargo.lock" "$repo/examples/transports/build.rs" "$repo/examples/transports/direct.json" "$repo/examples/transports/conditions.json" "$repo/examples/transports/regression-policy.json" "$stage/$name/examples/transports/"
-cp "$repo/examples/transports/src/main.rs" "$repo/examples/transports/src/tcp.rs" "$repo/examples/transports/src/connectivity.rs" "$stage/$name/examples/transports/src/"
+cp "$repo/examples/transports/Cargo.toml" "$repo/examples/transports/Cargo.lock" "$repo/examples/transports/build.rs" "$repo/examples/transports/direct.json" "$repo/examples/transports/conditions.json" "$repo/examples/transports/regression-policy.json" "$repo/examples/transports/recovery.json" "$stage/$name/examples/transports/"
+cp "$repo/examples/transports/src/lib.rs" "$repo/examples/transports/src/recovery.rs" "$repo/examples/transports/src/main.rs" "$repo/examples/transports/src/tcp.rs" "$repo/examples/transports/src/connectivity.rs" "$stage/$name/examples/transports/src/"
 cp "$repo/crates/transport-protocol/Cargo.toml" "$repo/crates/transport-protocol/Cargo.lock" "$stage/$name/crates/transport-protocol/"
 cp "$repo/crates/transport-protocol/src/lib.rs" "$stage/$name/crates/transport-protocol/src/"
-cp "$repo/scripts/check-transport-adapters.sh" "$repo/scripts/check-transport-comparison.sh" "$repo/scripts/check-iroh-connectivity.sh" "$repo/scripts/check-network-comparison.sh" "$repo/scripts/check-regression-gates.sh" "$stage/$name/scripts/"
+cp "$repo/scripts/check-transport-adapters.sh" "$repo/scripts/check-transport-comparison.sh" "$repo/scripts/check-iroh-connectivity.sh" "$repo/scripts/check-network-comparison.sh" "$repo/scripts/check-regression-gates.sh" "$repo/scripts/check-transport-recovery.sh" "$stage/$name/scripts/"
 mkdir -p "$stage/$name/examples/adapter-starter/src"
 cp "$repo/examples/adapter-starter/Cargo.toml" "$repo/examples/adapter-starter/Cargo.lock" "$repo/examples/adapter-starter/build.rs" "$repo/examples/adapter-starter/adapter.json" "$stage/$name/examples/adapter-starter/"
 cp "$repo/examples/adapter-starter/src/main.rs" "$repo/examples/adapter-starter/src/transport.rs" "$stage/$name/examples/adapter-starter/src/"
@@ -83,6 +83,10 @@ for name in ['direct.json','conditions.json']:
     path=pathlib.Path(sys.argv[1])/name;config=json.loads(path.read_text())
     for adapter in config['adapters']: adapter['argv'][0]='../../bin/natbench-transport-adapters'
     path.write_text(json.dumps(config,indent=2)+'\n')
+path=pathlib.Path(sys.argv[1])/'recovery.json';config=json.loads(path.read_text())
+for case in config['cases']:
+    for process in case['processes']:process['argv'][0]='../../bin/natbench-transport-recovery'
+path.write_text(json.dumps(config,indent=2)+'\n')
 PYCONFIG
 tar -czf "$archive" -C "$stage" "$name"
 (cd -- "$output" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")

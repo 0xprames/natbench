@@ -225,3 +225,15 @@ coverage and interruption never pass. Require the primary report/exit, and publi
 its JUnit rather than the diagnostic nested outcome JUnit. Existing comparison
 inputs still require 2–8 adapters; the generated conformance plan is a separate kind
 and cannot be rerun as a comparison. See [the starter guide](ADAPTER_STARTER.md).
+
+## Scheduled recovery inputs and evidence
+
+[Application input 5](../schemas/scenario-v5.schema.json) adds `network_set` on
+initially declared links and reserved per-case artifact/run-ID context. Inputs 2–4
+reject this action. [Network evidence 2](../schemas/network-conditions-v2.schema.json)
+retains initial/current state and partial or complete transitions; successful atomic
+markers follow [transition 1](../schemas/network-transition-v1.schema.json).
+[Reference recovery event 1](../schemas/transport-recovery-event-v1.schema.json)
+records fresh post-restoration verification and same-connection evidence, or a
+failed attempt without a timing. Suite report 2 remains authoritative.
+See [recovery semantics](TRANSPORT_RECOVERY.md).

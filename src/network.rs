@@ -120,6 +120,10 @@ struct LinkEvidence {
     #[serde(skip)]
     namespace: String,
     requested: Conditions,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    current_conditions: Option<Conditions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    initial_configured: Option<Value>,
     queue_limit_packets: Option<u32>,
     configure_argv: Vec<String>,
     installed: bool,
@@ -139,6 +143,45 @@ pub(crate) struct Manifest {
     interrupted: bool,
     links: Vec<LinkEvidence>,
     errors: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transitions: Option<Vec<Transition>>,
+}
+#[derive(Clone, Serialize)]
+pub(crate) struct Transition {
+    pub schema_version: u32,
+    pub kind: &'static str,
+    pub id: String,
+    pub run_id: String,
+    pub started_monotonic_ns: u64,
+    pub applied_monotonic_ns: Option<u64>,
+    pub complete: bool,
+    pub links: Vec<TransitionLink>,
+    pub error: Option<String>,
+}
+#[derive(Clone, Serialize)]
+pub(crate) struct TransitionLink {
+    egress: Egress,
+    requested: Conditions,
+    configure_argv: Vec<String>,
+    applied: bool,
+    before: Option<Value>,
+    after: Option<Value>,
+}
+pub(crate) fn monotonic_ns() -> Result<u64> {
+    // SAFETY: clock_gettime writes one initialized timespec, and this clock has
+    // the same host origin in the fixture's network namespaces (no time namespaces).
+    let mut time: libc::timespec = unsafe { std::mem::zeroed() };
+    ensure!(
+        unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut time) } == 0,
+        "read monotonic clock"
+    );
+    let seconds = u64::try_from(time.tv_sec)?;
+    let nanos = u64::try_from(time.tv_nsec)?;
+    ensure!(nanos < 1_000_000_000, "invalid monotonic nanoseconds");
+    seconds
+        .checked_mul(1_000_000_000)
+        .and_then(|value| value.checked_add(nanos))
+        .context("monotonic clock overflow")
 }
 /// Dropped before the lab, preserving final counters on failure and cancellation.
 pub(crate) struct Evidence {
@@ -180,7 +223,7 @@ impl Evidence {
         );
         Ok(value)
     }
-    pub fn start(lab: &Lab, directory: &Path, config: &Config) -> Result<Self> {
+    pub fn start_mode(lab: &Lab, directory: &Path, config: &Config, dynamic: bool) -> Result<Self> {
         config.prerequisites()?;
         let tc = crate::doctor::executable("tc").unwrap();
         let version = Command::new(&tc).arg("-V").output()?;
@@ -189,15 +232,15 @@ impl Evidence {
             path: directory.join("network.json"),
             tc, ip: crate::doctor::executable("ip").context("ip executable missing")?,
             finished: false,
-            manifest: Manifest { schema_version:1, kind:"network_conditions", backend:"linux_tc_netem",
+            manifest: Manifest { schema_version:if dynamic {2} else {1}, kind:"network_conditions", backend:"linux_tc_netem",
                 randomness:"kernel PRNG; no seed configured; repeated runs do not have identical loss schedules",
                 tc_version:String::from_utf8_lossy(&version.stdout).trim().into(),
-                configured:false, complete:false, interrupted:false, errors:Vec::new(),
+                configured:false, complete:false, interrupted:false, errors:Vec::new(),transitions:dynamic.then(Vec::new),
                 links:config.links.iter().map(|link| {
                     let (role,device)=link.egress.binding();
                     let enabled=link.conditions.enabled();
                     let configure_argv=if enabled { vec!["qdisc".into(),"add".into(),"dev".into(),device.into(),"root".into(),"handle".into(),"1:".into(),"netem".into(),"limit".into(),QUEUE_LIMIT.to_string(),"delay".into(),format!("{}ms",link.conditions.delay_ms),"loss".into(),"random".into(),format!("{}%",link.conditions.loss_percent)] } else { Vec::new() };
-                    LinkEvidence { egress:link.egress,role,device,namespace:lab.namespaces[role].clone(),requested:link.conditions.clone(),queue_limit_packets:enabled.then_some(QUEUE_LIMIT),configure_argv,installed:false,before:None,configured:None,after:None }
+                    LinkEvidence { egress:link.egress,role,device,namespace:lab.namespaces[role].clone(),requested:link.conditions.clone(),current_conditions:dynamic.then(||link.conditions.clone()),initial_configured:None,queue_limit_packets:enabled.then_some(QUEUE_LIMIT),configure_argv,installed:false,before:None,configured:None,after:None }
                 }).collect() },
         };
         evidence.save()?;
@@ -230,6 +273,9 @@ impl Evidence {
                         "configured netem root qdisc missing from kernel evidence"
                     );
                 }
+                if dynamic {
+                    evidence.manifest.links[index].initial_configured = Some(observed.clone());
+                }
                 evidence.manifest.links[index].configured = Some(observed);
                 evidence.save()?;
             }
@@ -242,6 +288,138 @@ impl Evidence {
             return Err(error);
         }
         Ok(evidence)
+    }
+    pub fn change(
+        &mut self,
+        lab: &Lab,
+        config: &Config,
+        id: &str,
+        run_id: &str,
+    ) -> Result<Transition> {
+        ensure!(
+            self.manifest.schema_version == 2 && !self.finished,
+            "network changes require application schema 5"
+        );
+        config.validate()?;
+        let mut transition = Transition {
+            schema_version: 1,
+            kind: "network_transition",
+            id: id.into(),
+            run_id: run_id.into(),
+            started_monotonic_ns: monotonic_ns()?,
+            applied_monotonic_ns: None,
+            complete: false,
+            links: Vec::new(),
+            error: None,
+        };
+        let result = (|| -> Result<()> {
+            for requested in &config.links {
+                crate::check_cancelled()?;
+                let index = self
+                    .manifest
+                    .links
+                    .iter()
+                    .position(|link| link.egress == requested.egress)
+                    .context("network change egress must be declared in initial network")?;
+                let link = &self.manifest.links[index];
+                let before = self.snapshot(link)?;
+                ensure!(
+                    link.configured
+                        .as_ref()
+                        .is_some_and(|expected| configuration(expected) == configuration(&before)),
+                    "qdisc drift before scheduled change for {:?}",
+                    requested.egress
+                );
+                let args = if requested.conditions.enabled() {
+                    vec![
+                        "qdisc".into(),
+                        "replace".into(),
+                        "dev".into(),
+                        link.device.into(),
+                        "root".into(),
+                        "handle".into(),
+                        "1:".into(),
+                        "netem".into(),
+                        "limit".into(),
+                        QUEUE_LIMIT.to_string(),
+                        "delay".into(),
+                        format!("{}ms", requested.conditions.delay_ms),
+                        "loss".into(),
+                        "random".into(),
+                        format!("{}%", requested.conditions.loss_percent),
+                    ]
+                } else if link.installed {
+                    vec![
+                        "qdisc".into(),
+                        "del".into(),
+                        "dev".into(),
+                        link.device.into(),
+                        "root".into(),
+                    ]
+                } else {
+                    Vec::new()
+                };
+                transition.links.push(TransitionLink {
+                    egress: requested.egress,
+                    requested: requested.conditions.clone(),
+                    configure_argv: args.clone(),
+                    applied: false,
+                    before: Some(before),
+                    after: None,
+                });
+                self.manifest
+                    .transitions
+                    .as_mut()
+                    .unwrap()
+                    .push(transition.clone());
+                self.save()?;
+                self.manifest.transitions.as_mut().unwrap().pop();
+                if !args.is_empty() {
+                    let tc = self.tc.to_str().context("tc path is not UTF-8")?;
+                    let argv = std::iter::once(tc)
+                        .chain(args.iter().map(String::as_str))
+                        .collect::<Vec<_>>();
+                    lab.run(link.role, &argv)?;
+                }
+                let after = self.snapshot(&self.manifest.links[index])?;
+                ensure!(
+                    !requested.conditions.enabled()
+                        || after
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|q| q["kind"] == "netem"
+                                && q["handle"] == "1:"
+                                && q["root"] == true),
+                    "changed netem root missing"
+                );
+                let link = &mut self.manifest.links[index];
+                link.installed = requested.conditions.enabled();
+                link.configured = Some(after.clone());
+                link.configure_argv = args;
+                link.queue_limit_packets = link.installed.then_some(QUEUE_LIMIT);
+                link.current_conditions = Some(requested.conditions.clone());
+                let changed = transition.links.last_mut().unwrap();
+                changed.applied = true;
+                changed.after = Some(after);
+            }
+            transition.applied_monotonic_ns = Some(monotonic_ns()?);
+            transition.complete = true;
+            Ok(())
+        })();
+        if let Err(error) = &result {
+            let message = format!("{error:#}");
+            transition.error = Some(message.clone());
+            self.manifest.errors.push(message);
+        }
+        self.manifest
+            .transitions
+            .as_mut()
+            .unwrap()
+            .push(transition.clone());
+        self.save()?;
+        result?;
+        Ok(transition)
     }
     pub fn finish(&mut self) -> Result<Manifest> {
         if !self.finished {

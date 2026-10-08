@@ -122,5 +122,6 @@ its timing, queueing and placement limits. Successful-attempt latency/goodput
 remains conditional on delivery; failed attempts retain counts without fabricated
 performance measurements.
 
-Jitter, rate/MTU controls, scheduled outages/rebinding and recovery measurements
-remain follow-up work in the [delivery queue](DELIVERY_QUEUE.md).
+[Application input 5](TRANSPORT_RECOVERY.md) adds scheduled link changes, outages
+and fresh-data recovery experiments. Jitter, rate/MTU controls, relay restart and
+rebinding remain follow-up work in the [delivery queue](DELIVERY_QUEUE.md).

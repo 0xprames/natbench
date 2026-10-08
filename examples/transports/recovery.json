@@ -1,0 +1,1484 @@
+{
+  "schema_version": 5,
+  "cases": [
+    {
+      "name": "iroh upload outage behind preserve NAT",
+      "a": "preserve",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "iroh",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "iroh",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "iroh download outage behind random NAT",
+      "a": "random",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "iroh",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "iroh",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "iroh both outage behind random NAT",
+      "a": "random",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "iroh",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "iroh",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "iroh permanent outage behind preserve NAT",
+      "a": "preserve",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "iroh",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "iroh",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "2500"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 4,
+          "expect_exit": 1,
+          "stdout_contains": "\"event\":\"failed\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "quinn upload outage behind preserve NAT",
+      "a": "preserve",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "quinn",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "quinn",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "quinn download outage behind random NAT",
+      "a": "random",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "quinn",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "quinn",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "quinn both outage behind random NAT",
+      "a": "random",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "quinn",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "quinn",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "quinn permanent outage behind preserve NAT",
+      "a": "preserve",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "quinn",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "quinn",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "2500"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 4,
+          "expect_exit": 1,
+          "stdout_contains": "\"event\":\"failed\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "tcp upload outage behind preserve NAT",
+      "a": "preserve",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "tcp",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "tcp",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "tcp download outage behind random NAT",
+      "a": "random",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "tcp",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "tcp",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "tcp both outage behind random NAT",
+      "a": "random",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "tcp",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "tcp",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "10000"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "delay",
+          "seconds": 1
+        },
+        {
+          "action": "network_set",
+          "id": "restored",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 0
+                }
+              }
+            ]
+          },
+          "marker": "restored.json"
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 12,
+          "expect_exit": 0,
+          "stdout_contains": "\"event\":\"recovered\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    },
+    {
+      "name": "tcp permanent outage behind preserve NAT",
+      "a": "preserve",
+      "b": "preserve",
+      "router_input": "drop",
+      "network": {
+        "links": [
+          {
+            "egress": "router_a_wan",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          },
+          {
+            "egress": "wan_router_a",
+            "conditions": {
+              "delay_ms": 0,
+              "loss_percent": 0
+            }
+          }
+        ]
+      },
+      "processes": [
+        {
+          "name": "server",
+          "role": "wan",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "tcp",
+            "--role",
+            "server"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"ready\""
+          }
+        },
+        {
+          "name": "client",
+          "role": "a",
+          "argv": [
+            "./target/release/natbench-transport-recovery",
+            "--transport",
+            "tcp",
+            "--role",
+            "client",
+            "--deadline-ms",
+            "2500"
+          ],
+          "timeout_seconds": 3,
+          "ready": {
+            "kind": "stdout_contains",
+            "text": "\"event\":\"initial_delivered\""
+          }
+        }
+      ],
+      "steps": [
+        {
+          "action": "start",
+          "process": "server"
+        },
+        {
+          "action": "start",
+          "process": "client"
+        },
+        {
+          "action": "network_set",
+          "id": "outage",
+          "network": {
+            "links": [
+              {
+                "egress": "router_a_wan",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              },
+              {
+                "egress": "wan_router_a",
+                "conditions": {
+                  "delay_ms": 0,
+                  "loss_percent": 100
+                }
+              }
+            ]
+          },
+          "marker": "outage.json"
+        },
+        {
+          "action": "wait_stdout",
+          "process": "client",
+          "text": "\"event\":\"probe_started\"",
+          "timeout_seconds": 2
+        },
+        {
+          "action": "wait_exit",
+          "process": "client",
+          "timeout_seconds": 4,
+          "expect_exit": 1,
+          "stdout_contains": "\"event\":\"failed\""
+        },
+        {
+          "action": "stop",
+          "process": "server"
+        }
+      ]
+    }
+  ]
+}

@@ -92,6 +92,11 @@ enum Step {
     Delay {
         seconds: f64,
     },
+    NetworkSet {
+        id: String,
+        network: crate::network::Config,
+        marker: String,
+    },
 }
 impl Step {
     fn process(&self) -> Option<&str> {
@@ -102,24 +107,24 @@ impl Step {
             | Self::Restart { process }
             | Self::WaitStdout { process, .. }
             | Self::WaitExit { process, .. } => Some(process),
-            Self::Delay { .. } => None,
+            Self::Delay { .. } | Self::NetworkSet { .. } => None,
         }
     }
 }
 impl Suite {
     fn validate(&self, base: &Path) -> Result<()> {
         anyhow::ensure!(
-            matches!(self.schema_version, 2..=4)
+            matches!(self.schema_version, 2..=5)
                 && !self.cases.is_empty()
                 && self.cases.len() <= 100,
-            "application schemas 2, 3 and 4 need 1–100 cases"
+            "application schemas 2–5 need 1–100 cases"
         );
         let mut case_names = HashSet::new();
         for case in &self.cases {
-            if self.schema_version == 4 {
+            if matches!(self.schema_version, 4 | 5) {
                 case.network
                     .as_ref()
-                    .context("application schema 4 requires network on every case")?
+                    .context("application schemas 4 and 5 require network on every case")?
                     .prerequisites()?;
             }
             anyhow::ensure!(
@@ -172,6 +177,12 @@ impl Suite {
                 );
                 for (key, value) in &program.env {
                     anyhow::ensure!(
+                        self.schema_version != 5
+                            || !["NATBENCH_CASE_ARTIFACTS", "NATBENCH_RUN_ID"]
+                                .contains(&key.as_str()),
+                        "schema 5 reserves {key} for fixture context"
+                    );
+                    anyhow::ensure!(
                         !key.is_empty() && !key.contains(['=', '\0']) && !value.contains('\0'),
                         "invalid environment for {}",
                         program.name
@@ -187,18 +198,68 @@ impl Suite {
                 }
             }
             let mut live = HashSet::new();
+            let mut network_ids = HashSet::new();
+            let mut marker_names = HashSet::new();
             for step in &case.steps {
                 if matches!(
                     step,
                     Step::WaitStdout { .. } | Step::WaitExit { .. } | Step::Delay { .. }
                 ) {
                     anyhow::ensure!(
-                        matches!(self.schema_version, 3 | 4),
-                        "wait_stdout, wait_exit and delay require application schema 3 or 4"
+                        matches!(self.schema_version, 3..=5),
+                        "wait_stdout, wait_exit and delay require application schema 3–5"
                     );
                 }
                 if let Step::Delay { seconds } = step {
                     validate_timeout(*seconds)?;
+                    continue;
+                }
+                if let Step::NetworkSet {
+                    id,
+                    network,
+                    marker,
+                } = step
+                {
+                    anyhow::ensure!(
+                        self.schema_version == 5,
+                        "network_set requires application schema 5"
+                    );
+                    network.prerequisites()?;
+                    for link in &network.links {
+                        anyhow::ensure!(
+                            case.network
+                                .as_ref()
+                                .unwrap()
+                                .links
+                                .iter()
+                                .any(|initial| initial.egress == link.egress),
+                            "network_set must target initially declared links"
+                        );
+                    }
+                    anyhow::ensure!(
+                        !id.is_empty()
+                            && id.len() <= 64
+                            && id
+                                .bytes()
+                                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+                            && network_ids.insert(id),
+                        "network event ids must be unique safe identifiers"
+                    );
+                    anyhow::ensure!(
+                        marker.len() > 5
+                            && marker.len() <= 64
+                            && marker.ends_with(".json")
+                            && marker.bytes().all(|b| b.is_ascii_alphanumeric()
+                                || b == b'-'
+                                || b == b'_'
+                                || b == b'.')
+                            && !marker.starts_with('.')
+                            && !marker.contains("..")
+                            && !["network.json", "capture.json", "capture-config.json"]
+                                .contains(&marker.as_str())
+                            && marker_names.insert(marker),
+                        "network marker must be a unique safe .json filename"
+                    );
                     continue;
                 }
                 let program = case
@@ -272,7 +333,7 @@ impl Suite {
                             validate_pattern(pattern)?;
                         }
                     }
-                    Step::Delay { .. } => unreachable!(),
+                    Step::Delay { .. } | Step::NetworkSet { .. } => unreachable!(),
                 }
             }
         }
@@ -352,6 +413,7 @@ struct Runner<'a> {
     events: Vec<Value>,
     timeline: File,
     started: Instant,
+    run_id: Option<String>,
 }
 impl<'a> Runner<'a> {
     fn event(&mut self, process: &str, state: &str) -> Result<()> {
@@ -401,11 +463,21 @@ impl<'a> Runner<'a> {
         let prefix = format!("{}-{}", program.name, generation);
         let stdout = self.artifacts.join(format!("{prefix}.stdout.log"));
         let stderr = self.artifacts.join(format!("{prefix}.stderr.log"));
+        let mut environment = program.env.clone();
+        if let Some(run_id) = &self.run_id {
+            environment.insert("NATBENCH_RUN_ID".into(), run_id.clone());
+            environment.insert(
+                "NATBENCH_CASE_ARTIFACTS".into(),
+                fs::canonicalize(self.artifacts)?
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
         let process = self.lab.spawn_application(
             &program.role,
             &argv,
             &cwd,
-            &program.env,
+            &environment,
             File::create(&stdout)?,
             File::create(&stderr)?,
         )?;
@@ -656,12 +728,38 @@ impl<'a> Runner<'a> {
                         )?;
                     }
                     Step::Delay { seconds } => self.delay(*seconds)?,
+                    Step::NetworkSet {
+                        id,
+                        network,
+                        marker,
+                    } => {
+                        use std::os::unix::fs::OpenOptionsExt;
+                        let path = self.artifacts.join(marker);
+                        anyhow::ensure!(!path.exists(), "network marker already exists");
+                        self.record(json!({"elapsed_ms":self.started.elapsed().as_millis(),"state":"network_change_started","id":id}))?;
+                        let transition = self.network.as_mut().unwrap().change(
+                            &self.lab,
+                            network,
+                            id,
+                            self.run_id.as_ref().unwrap(),
+                        )?;
+                        let temporary = path.with_extension("event.tmp");
+                        let mut file = fs::OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .mode(0o600)
+                            .open(&temporary)?;
+                        serde_json::to_writer(&mut file, &transition)?;
+                        file.sync_all()?;
+                        fs::rename(temporary, &path)?;
+                        self.record(json!({"elapsed_ms":self.started.elapsed().as_millis(),"state":"network_change_applied","id":id,"marker":marker,"applied_monotonic_ns":transition.applied_monotonic_ns}))?;
+                    }
                 }
                 Ok(())
             })();
             step_result.with_context(|| match step.process() {
                 Some(process) => format!("step {} for process {process}", index + 1),
-                None => format!("step {} (delay)", index + 1),
+                None => format!("step {} (fixture action)", index + 1),
             })?;
             if !messages.is_empty() {
                 break;
@@ -755,7 +853,14 @@ impl Plan {
                 let network = case
                     .network
                     .as_ref()
-                    .map(|config| crate::network::Evidence::start(&lab, &directory, config))
+                    .map(|config| {
+                        crate::network::Evidence::start_mode(
+                            &lab,
+                            &directory,
+                            config,
+                            self.suite.schema_version == 5,
+                        )
+                    })
                     .transpose()?;
                 let capture = capture_options
                     .map(|options| crate::capture::Group::start(&mut lab, &directory, options))
@@ -772,6 +877,13 @@ impl Plan {
                     events: Vec::new(),
                     timeline,
                     started,
+                    run_id: if self.suite.schema_version == 5 {
+                        let mut bytes = [0; 16];
+                        File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+                        Some(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+                    } else {
+                        None
+                    },
                 };
                 runner.execute()
             },

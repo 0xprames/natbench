@@ -28,7 +28,7 @@ jobs:
       - run: cargo test --locked
       - run: cargo test --locked --manifest-path crates/transport-protocol/Cargo.toml
       - run: cargo clippy --locked --manifest-path examples/transports/Cargo.toml --all-targets -- -D warnings
-      - run: cargo test --locked --manifest-path examples/transports/Cargo.toml --bins
+      - run: cargo test --locked --manifest-path examples/transports/Cargo.toml
       - run: cargo build --release --locked --manifest-path examples/transports/Cargo.toml
       - run: cargo clippy --locked --manifest-path examples/adapter-starter/Cargo.toml --all-targets -- -D warnings
       - run: cargo test --locked --manifest-path examples/adapter-starter/Cargo.toml
@@ -46,6 +46,7 @@ jobs:
       - run: sudo scripts/check-iroh-connectivity.sh ./target/debug/natbench ./examples/transports/target/release/natbench-iroh-connectivity iroh-connectivity-artifacts
       - run: sudo scripts/check-network-comparison.sh ./target/debug/natbench ./examples/transports/target/release/natbench-transport-adapters network-comparison-artifacts
       - run: sudo scripts/check-adapter-starter.sh ./target/debug/natbench ./examples/adapter-starter/target/release/natbench-adapter-starter adapter-starter-artifacts
+      - run: sudo scripts/check-transport-recovery.sh ./target/debug/natbench ./examples/transports/target/release/natbench-transport-recovery transport-recovery-artifacts
       - run: |
           scripts/new-adapter.sh standalone-adapter custom-transport-adapter
           cargo build --release --locked --manifest-path standalone-adapter/Cargo.toml
@@ -53,7 +54,7 @@ jobs:
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts network-comparison-artifacts regression-artifacts adapter-starter-artifacts standalone-adapter-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts network-comparison-artifacts regression-artifacts adapter-starter-artifacts standalone-adapter-artifacts transport-recovery-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -78,3 +79,4 @@ jobs:
             adapter-starter-artifacts/
             standalone-adapter-artifacts/
             standalone-adapter-report.json
+            transport-recovery-artifacts/

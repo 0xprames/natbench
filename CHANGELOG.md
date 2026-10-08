@@ -2,6 +2,12 @@
 
 ## 0.3.0 development
 
+- Application input 5 schedules declared link changes with fresh per-case context,
+  atomic transition markers and monotonic/kernel evidence, including partial failure
+  and cancellation. Separately built iroh/Quinn/TCP examples verify fresh data on
+  the existing connection after outages and preserve persistent-outage failures.
+  Native bundles and CI include the recovery binary, example and verifier.
+
 - An independent Rust adapter generator copies source, locked dependencies and the
   small protocol into a separate project with a replaceable TCP transport module
   and CI workflow. Native bundles include its executable and generator.
