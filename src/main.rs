@@ -26,6 +26,16 @@ struct Network {
 }
 #[derive(Subcommand)]
 enum Action {
+    /// Assess every comparison cohort against explicit requirements, optionally a saved baseline.
+    Assess {
+        report: PathBuf,
+        #[arg(long)]
+        policy: PathBuf,
+        #[arg(long)]
+        baseline: Option<PathBuf>,
+        #[arg(long)]
+        artifacts: PathBuf,
+    },
     /// Explain prerequisites; --probe verifies kernel features in disposable namespaces.
     Doctor {
         #[arg(long)]
@@ -195,6 +205,24 @@ enum Action {
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
+        Action::Assess {
+            report,
+            policy,
+            baseline,
+            artifacts,
+        } => {
+            let report =
+                match natbench::assess::run(&report, &policy, baseline.as_deref(), &artifacts) {
+                    Ok(report) => report,
+                    Err(error) => {
+                        eprintln!("natbench assess: {error:#}");
+                        return Ok(2);
+                    }
+                };
+            eprint!("{}", report.readable());
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(report.exit_code());
+        }
         Action::Compare {
             comparison,
             artifacts,

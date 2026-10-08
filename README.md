@@ -149,7 +149,9 @@ older input versions remain supported. The source comparison also includes a
 plain TCP baseline with kernel/socket and security metadata. TCP delivers through
 blocked UDP; total loss prevents delivery for all three reference adapters. These
 additions are not in the published alpha.2. The [delivery queue](docs/DELIVERY_QUEUE.md)
-tracks further controls, regression gates, recovery and the external adapter starter.
+tracks further controls, recovery and the external adapter starter. Source builds
+also add [offline regression gates and saved baselines](docs/REGRESSION_GATES.md):
+check delivery rate, p95 RTT and verified goodput with explicit sample requirements.
 
 ## Packet evidence
 

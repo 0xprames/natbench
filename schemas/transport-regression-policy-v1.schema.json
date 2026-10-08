@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/transport-regression-policy-v1.schema.json",
+  "title": "Offline transport regression requirements version 1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "transport_regression_policy"
+    },
+    "cohorts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case": {
+            "type": "string",
+            "minLength": 1
+          },
+          "adapter": {
+            "type": "string",
+            "minLength": 1
+          },
+          "min_attempts": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "min_successful_attempts": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "min_message_rtt_samples": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "min_delivery_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "max_message_rtt_p95_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 60
+          },
+          "min_bulk_goodput_bytes_per_second": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "baseline": {
+            "type": "object",
+            "properties": {
+              "max_delivery_rate_drop": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "max_message_rtt_p95_increase_fraction": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "max_bulk_goodput_drop_fraction": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "allowed_metadata_changes": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "enum": [
+                    "implementation_version",
+                    "adapter_version",
+                    "adapter_source_sha256",
+                    "quic_engine_version"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "allowed_metadata_changes"
+            ],
+            "additionalProperties": false,
+            "anyOf": [
+              {
+                "required": [
+                  "max_delivery_rate_drop"
+                ]
+              },
+              {
+                "required": [
+                  "max_message_rtt_p95_increase_fraction"
+                ]
+              },
+              {
+                "required": [
+                  "max_bulk_goodput_drop_fraction"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "case",
+          "adapter",
+          "min_attempts",
+          "min_successful_attempts",
+          "min_message_rtt_samples",
+          "min_delivery_rate"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 256
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "cohorts"
+  ],
+  "additionalProperties": false
+}

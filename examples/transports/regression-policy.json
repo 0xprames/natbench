@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "kind": "transport_regression_policy",
+  "cohorts": [
+    {
+      "case": "direct stream behind preserve NAT",
+      "adapter": "iroh",
+      "min_attempts": 3,
+      "min_successful_attempts": 3,
+      "min_message_rtt_samples": 20,
+      "min_delivery_rate": 1,
+      "max_message_rtt_p95_seconds": 0.1,
+      "min_bulk_goodput_bytes_per_second": 1048576
+    },
+    {
+      "case": "direct stream behind preserve NAT",
+      "adapter": "quinn",
+      "min_attempts": 3,
+      "min_successful_attempts": 3,
+      "min_message_rtt_samples": 20,
+      "min_delivery_rate": 1,
+      "max_message_rtt_p95_seconds": 0.1,
+      "min_bulk_goodput_bytes_per_second": 1048576
+    },
+    {
+      "case": "direct stream behind preserve NAT",
+      "adapter": "tcp",
+      "min_attempts": 3,
+      "min_successful_attempts": 3,
+      "min_message_rtt_samples": 20,
+      "min_delivery_rate": 1,
+      "max_message_rtt_p95_seconds": 0.1,
+      "min_bulk_goodput_bytes_per_second": 1048576
+    },
+    {
+      "case": "direct stream behind random NAT",
+      "adapter": "iroh",
+      "min_attempts": 3,
+      "min_successful_attempts": 3,
+      "min_message_rtt_samples": 20,
+      "min_delivery_rate": 1,
+      "max_message_rtt_p95_seconds": 0.1,
+      "min_bulk_goodput_bytes_per_second": 1048576
+    },
+    {
+      "case": "direct stream behind random NAT",
+      "adapter": "quinn",
+      "min_attempts": 3,
+      "min_successful_attempts": 3,
+      "min_message_rtt_samples": 20,
+      "min_delivery_rate": 1,
+      "max_message_rtt_p95_seconds": 0.1,
+      "min_bulk_goodput_bytes_per_second": 1048576
+    },
+    {
+      "case": "direct stream behind random NAT",
+      "adapter": "tcp",
+      "min_attempts": 3,
+      "min_successful_attempts": 3,
+      "min_message_rtt_samples": 20,
+      "min_delivery_rate": 1,
+      "max_message_rtt_p95_seconds": 0.1,
+      "min_bulk_goodput_bytes_per_second": 1048576
+    }
+  ]
+}
