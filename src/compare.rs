@@ -125,7 +125,7 @@ impl Config {
         Ok(())
     }
 }
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Planned {
     pub index: usize,
     pub run: u32,
@@ -133,7 +133,7 @@ pub struct Planned {
     pub adapter: String,
     pub artifacts_directory: String,
 }
-#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
     Passed,
@@ -142,7 +142,7 @@ pub enum Outcome {
     InfrastructureFailed,
     Interrupted,
 }
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Attempt {
     pub index: usize,
     pub outcome: Outcome,
@@ -161,11 +161,37 @@ pub struct Summary {
     pub message_rtt_seconds: Option<Timing>,
     pub bulk_bytes_per_second: Option<Timing>,
 }
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct CaseConditions {
     pub name: String,
     pub profile: Profile,
-    network: Option<crate::network::DirectConfig>,
+    pub(crate) network: Option<crate::network::DirectConfig>,
+    #[serde(default)]
+    pub(crate) deadline_ms: Option<u64>,
+    #[serde(default, deserialize_with = "case_workload")]
+    pub(crate) workload: Option<Workload>,
+}
+fn case_workload<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<Workload>, D::Error> {
+    let mut value = serde_json::Value::deserialize(deserializer)?;
+    if value.is_null() {
+        return Ok(None);
+    }
+    if let Some(object) = value.as_object_mut() {
+        object.retain(|key, _| {
+            [
+                "payload_bytes",
+                "warmup_messages",
+                "measured_messages",
+                "bulk_bytes",
+            ]
+            .contains(&key.as_str())
+        });
+    }
+    serde_json::from_value(value)
+        .map(Some)
+        .map_err(serde::de::Error::custom)
 }
 #[derive(Serialize)]
 pub struct Report {
@@ -629,7 +655,7 @@ pub fn run(path: &Path, artifacts: &Path, runs: u32, capture: Option<u32>) -> Re
             }
         }
     }
-    let mut report = Report { schema_version:1,kind:"transport_comparison_report",topology:"ipv4_client_a_to_wan",workload_semantics:"direct reliable streams; fresh endpoints; bulk includes receiver verification and acknowledgement",environment,case_conditions:config.cases.iter().map(|case|CaseConditions{name:case.name.clone(),profile:case.profile,network:case.network.clone()}).collect(),planned,attempts:Vec::new(),active_attempt:None,complete:false,interrupted:false,summaries };
+    let mut report = Report { schema_version:1,kind:"transport_comparison_report",topology:"ipv4_client_a_to_wan",workload_semantics:"direct reliable streams; fresh endpoints; bulk includes receiver verification and acknowledgement",environment,case_conditions:config.cases.iter().map(|case|CaseConditions{name:case.name.clone(),profile:case.profile,network:case.network.clone(),deadline_ms:Some(case.deadline_ms),workload:Some(case.workload.clone())}).collect(),planned,attempts:Vec::new(),active_attempt:None,complete:false,interrupted:false,summaries };
     report.save(&root)?;
     for index in 0..report.planned.len() {
         if crate::cancellation().load(Ordering::Relaxed) {

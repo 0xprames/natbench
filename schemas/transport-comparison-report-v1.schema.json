@@ -273,6 +273,28 @@
                 "additionalProperties": true
               }
             ]
+          },
+          "deadline_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workload": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/workload"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

@@ -16,6 +16,8 @@ pub struct Environment {
     os: &'static str,
     architecture: &'static str,
     kernel_release: Option<String>,
+    cpu_model: Option<String>,
+    available_parallelism: Option<usize>,
     effective_uid: u32,
     recorded_at_unix_seconds: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -30,12 +32,46 @@ impl Environment {
             kernel_release: fs::read_to_string("/proc/sys/kernel/osrelease")
                 .ok()
                 .map(|value| value.trim().to_owned()),
+            cpu_model: cpu_model(),
+            available_parallelism: std::thread::available_parallelism().ok().map(usize::from),
             // SAFETY: geteuid has no arguments or memory-safety requirements.
             effective_uid: unsafe { libc::geteuid() },
             recorded_at_unix_seconds: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             packet_capture: capture.cloned(),
         })
     }
+}
+fn cpu_model() -> Option<String> {
+    use std::io::Read;
+    let mut text = String::new();
+    fs::File::open("/proc/cpuinfo")
+        .ok()?
+        .take(65536)
+        .read_to_string(&mut text)
+        .ok()?;
+    let fields: BTreeMap<_, _> = text
+        .split("\n\n")
+        .next()?
+        .lines()
+        .filter_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            Some((key.trim(), value.trim()))
+        })
+        .collect();
+    if let Some(model) = fields.get("model name").filter(|model| !model.is_empty()) {
+        return Some((*model).to_owned());
+    }
+    let identity: Vec<_> = [
+        "CPU implementer",
+        "CPU architecture",
+        "CPU variant",
+        "CPU part",
+        "CPU revision",
+    ]
+    .iter()
+    .filter_map(|key| fields.get(key).map(|value| format!("{key}={value}")))
+    .collect();
+    (!identity.is_empty()).then(|| identity.join("; "))
 }
 #[derive(Serialize, Debug)]
 pub struct Timing {

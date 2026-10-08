@@ -207,3 +207,11 @@ and random loss in each direction, with kernel settings/counters per attempt. Th
 adapter request/workload contract stays at version 1, so existing external adapters
 can participate. Use `examples/transports/conditions.json` after a source build; the
 published alpha.2 predates this configuration.
+
+## Development regression gates
+
+Use [offline requirements and saved baselines](REGRESSION_GATES.md) to assess a
+current-source comparison report. All cohorts remain required; delivery, p95 RTT
+and minimum verified goodput have explicit sample counts. Compatibility checks
+recorded workload, topology, conditions, machine, security and transport settings.
+The published alpha.2 does not include this command or the necessary metadata.

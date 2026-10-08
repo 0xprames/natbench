@@ -2,6 +2,14 @@
 
 ## 0.3.0 development
 
+- Offline `assess` gates every comparison cohort against explicit delivery-rate,
+  p95 application RTT, minimum verified-goodput and sample requirements. Saved
+  baselines require matched experiments/machine/settings with explicit recorded
+  build-version allowances; raw inputs, coverage and JSON/JUnit stay available.
+- Comparison report 1 adds case workload/deadline and CPU/parallelism metadata.
+  Native archives ship the example policy and regression verifier; CI assesses
+  real comparison reports and separately labelled synthetic diagnostic cases.
+
 - A separately built plain TCP baseline joins iroh/Quinn in direct and shaped
   comparisons. The same fresh message/bulk verification runs on bounded
   length-prefixed exchanges, with kernel/socket, stream and security metadata.

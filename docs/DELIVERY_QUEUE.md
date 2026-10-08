@@ -36,12 +36,16 @@ them; request/response framing differs between TCP and QUIC.
 
 ## 3. Regression gates and saved comparisons
 
-Add explicit requirements for delivery rate, p95 application RTT and minimum
-verified goodput with sample-count requirements. Failed/unsupported/incomplete
-attempts stay visible and cannot become passing results through filtering. Saved
-baseline comparisons require compatible workloads, topology, settings and network
-conditions; distinguish relative change from an absolute requirement. Leave noise
-budgets explicit instead of promising identical timings across hosts.
+- [x] Development gates: offline `natbench assess` checks delivery rate, p95
+  message RTT, minimum verified goodput and explicit successful/sample counts.
+  All cohorts and failed/unsupported/incomplete attempts stay visible.
+- [x] Saved comparisons: explicit relative allowances, matched workload/topology/
+  network/machine/settings metadata and audited build-version allowances.
+  Raw reports/policy and JSON/JUnit are retained.
+- [ ] Publish the command and example policy in a validated native preview.
+
+See [gate semantics and saved-baseline guidance](REGRESSION_GATES.md). Relative
+change and absolute requirements are separate; noise allowances are explicit.
 
 ## 4. Recovery experiments
 

@@ -2,6 +2,7 @@
 
 //! Network fixtures and measured NAT experiments for Linux.
 mod application;
+pub mod assess;
 pub mod bench;
 mod capture;
 pub mod compare;

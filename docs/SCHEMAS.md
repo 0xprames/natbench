@@ -198,3 +198,16 @@ observations add optional `network_conditions` metadata.
 by kind `network_conditions`; completion concerns collection/configuration integrity,
 independently from the test outcome. See [network semantics and limits](NETWORK_CONDITIONS.md).
 The v0.2.0-alpha.2 archive predates these formats.
+
+## Development regression assessment
+
+[Regression policy 1](../schemas/transport-regression-policy-v1.schema.json) has
+kind `transport_regression_policy` and closed, bounded inputs. [Assessment report
+1](../schemas/transport-regression-report-v1.schema.json) has kind
+`transport_regression_report`, permits additive output metadata, and retains source
+coverage, recomputed measurements, verdicts and compatibility changes. Comparison
+report 1 adds optional per-case workload/deadline descriptors; environment metadata
+adds CPU identity and available parallelism. Older output readers can ignore these
+additions. Assessment needs the descriptors, and baseline comparison needs machine
+metadata; rerun older reports with current source. No existing input version changes.
+See [requirements, baseline compatibility and exits](REGRESSION_GATES.md).
