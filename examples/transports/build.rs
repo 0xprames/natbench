@@ -19,6 +19,7 @@ fn main() {
         "Cargo.lock",
         "build.rs",
         "src/main.rs",
+        "src/tcp.rs",
         "src/connectivity.rs",
         "../../crates/transport-protocol/Cargo.toml",
         "../../crates/transport-protocol/src/lib.rs",

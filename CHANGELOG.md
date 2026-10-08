@@ -2,6 +2,12 @@
 
 ## 0.3.0 development
 
+- A separately built plain TCP baseline joins iroh/Quinn in direct and shaped
+  comparisons. The same fresh message/bulk verification runs on bounded
+  length-prefixed exchanges, with kernel/socket, stream and security metadata.
+  TCP succeeds through blocked UDP; all three fail under directional total loss.
+  Native archives include the updated executable and rebuildable source.
+
 - Comparison input 2 declares matched client-to-server/server-to-client delay and
   random loss. Application input 4 exposes the same controls on named fixture links
   through `test`/`repeat`; older closed input versions retain their behavior.

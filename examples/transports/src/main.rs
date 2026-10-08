@@ -17,10 +17,12 @@ use std::{
 };
 
 const ALPN: &[u8] = b"natbench/direct-stream/1";
+mod tcp;
 #[derive(Clone, Copy, ValueEnum)]
 enum Transport {
     Iroh,
     Quinn,
+    Tcp,
 }
 #[derive(Parser)]
 #[command(name = "natbench-transport-adapters", version)]
@@ -30,12 +32,21 @@ struct Cli {
     #[arg(long)]
     request: PathBuf,
 }
-fn implementation(transport: Transport) -> Implementation {
+fn implementation(transport: Transport) -> Result<Implementation> {
     let (name, version, engine, authentication) = match transport {
         Transport::Iroh => ("iroh", "1.3.0", "noq", "mutual endpoint identity"),
         Transport::Quinn => ("quinn", "0.11.12", "quinn", "pinned server certificate"),
+        Transport::Tcp => {
+            let (version, mut settings) = tcp::settings()?;
+            settings.extend(build_settings());
+            return Ok(Implementation {
+                name: "tcp".into(),
+                version,
+                settings,
+            });
+        }
     };
-    Implementation {
+    let mut implementation = Implementation {
         name: name.into(),
         version: version.into(),
         settings: BTreeMap::from([
@@ -45,30 +56,45 @@ fn implementation(transport: Transport) -> Implementation {
                 match transport {
                     Transport::Iroh => env!("ADAPTER_NOQ"),
                     Transport::Quinn => "0.11.12",
+                    Transport::Tcp => unreachable!(),
                 }
                 .into(),
             ),
             ("authentication".into(), authentication.into()),
             ("crypto_provider".into(), "ring".into()),
             ("transport_settings".into(), "library defaults".into()),
-            ("session".into(), "fresh endpoint; no resumption".into()),
-            ("relay".into(), "disabled".into()),
             (
-                "address_lookup".into(),
-                "controller-provided peer; no discovery".into(),
+                "stream_strategy".into(),
+                "new bidirectional stream per exchange on one fresh connection".into(),
             ),
-            ("adapter_version".into(), env!("CARGO_PKG_VERSION").into()),
-            ("rustc".into(), env!("ADAPTER_RUSTC").into()),
-            ("build_profile".into(), env!("ADAPTER_PROFILE").into()),
             (
-                "adapter_source_sha256".into(),
-                env!("ADAPTER_SOURCE_SHA256").into(),
+                "application_framing".into(),
+                "QUIC stream FIN delimits each request and response".into(),
             ),
         ]),
-    }
+    };
+    implementation.settings.extend(build_settings());
+    Ok(implementation)
+}
+fn build_settings() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("session".into(), "fresh endpoint; no resumption".into()),
+        ("relay".into(), "disabled".into()),
+        (
+            "address_lookup".into(),
+            "controller-provided peer; no discovery".into(),
+        ),
+        ("adapter_version".into(), env!("CARGO_PKG_VERSION").into()),
+        ("rustc".into(), env!("ADAPTER_RUSTC").into()),
+        ("build_profile".into(), env!("ADAPTER_PROFILE").into()),
+        (
+            "adapter_source_sha256".into(),
+            env!("ADAPTER_SOURCE_SHA256").into(),
+        ),
+    ])
 }
 fn emit(request: &Request, transport: Transport, data: EventData) -> Result<()> {
-    let event = Event::new(request, implementation(transport), data);
+    let event = Event::new(request, implementation(transport)?, data);
     event.validate(request)?;
     let bytes = serde_json::to_vec(&event)?;
     ensure!(
@@ -87,7 +113,7 @@ fn publish_peer(request: &Request, transport: Transport, details: serde_json::Va
         schema_version: 1,
         kind: "transport_peer".into(),
         run_id: request.run_id.clone(),
-        implementation: implementation(transport),
+        implementation: implementation(transport)?,
         details,
     };
     let temporary = request.peer_file.with_extension("tmp");
@@ -121,7 +147,7 @@ fn peer(request: &Request, transport: Transport) -> Result<Bootstrap> {
         peer.schema_version == 1
             && peer.kind == "transport_peer"
             && peer.run_id == request.run_id
-            && peer.implementation == implementation(transport),
+            && peer.implementation == implementation(transport)?,
         "peer bootstrap identity/version/settings mismatch"
     );
     ensure!(
@@ -148,9 +174,13 @@ enum Connection {
         endpoint: quinn::Endpoint,
         connection: quinn::Connection,
     },
+    Tcp {
+        stream: tokio::net::TcpStream,
+        server_socket: serde_json::Value,
+    },
 }
 impl Connection {
-    async fn exchange(&self, bytes: &[u8], limit: usize) -> Result<Vec<u8>> {
+    async fn exchange(&mut self, bytes: &[u8], limit: usize) -> Result<Vec<u8>> {
         match self {
             Self::Iroh { connection, .. } => {
                 let (mut send, mut recv) = connection.open_bi().await?;
@@ -164,10 +194,11 @@ impl Connection {
                 send.finish()?;
                 Ok(recv.read_to_end(limit).await?)
             }
+            Self::Tcp { stream, .. } => tcp::exchange(stream, bytes, limit).await,
         }
     }
-    fn evidence(&self) -> serde_json::Value {
-        match self {
+    fn evidence(&self) -> Result<serde_json::Value> {
+        Ok(match self {
             Self::Iroh { connection, .. } => {
                 json!({"source":"iroh paths snapshot", "paths":format!("{:?}", connection.paths()), "remote_id":connection.remote_id().to_string(), "configured_transports":["ipv4_udp"]})
             }
@@ -177,9 +208,15 @@ impl Connection {
             } => {
                 json!({"source":"quinn connection addresses", "local":endpoint.local_addr().ok().map(|a|a.to_string()), "remote":connection.remote_address().to_string()})
             }
-        }
+            Self::Tcp {
+                stream,
+                server_socket,
+            } => {
+                json!({"source":"TCP socket snapshots", "client":tcp::snapshot(&socket2::SockRef::from(stream))?, "server_listener":server_socket})
+            }
+        })
     }
-    async fn close(self) {
+    async fn close(self) -> Result<()> {
         match self {
             Self::Iroh {
                 endpoint,
@@ -195,11 +232,26 @@ impl Connection {
                 connection.close(0u32.into(), b"verified");
                 endpoint.wait_idle().await;
             }
+            Self::Tcp { mut stream, .. } => {
+                tokio::io::AsyncWriteExt::shutdown(&mut stream).await?;
+            }
         }
+        Ok(())
     }
 }
 async fn connect(request: &Request, transport: Transport, peer: &Bootstrap) -> Result<Connection> {
     match transport {
+        Transport::Tcp => {
+            let socket = tcp::socket()?;
+            socket.bind(request.listen_address)?;
+            let stream = socket.connect(request.peer_address).await?;
+            // Read back effective options; missing evidence fails this attempt.
+            tcp::snapshot(&socket2::SockRef::from(&stream))?;
+            Ok(Connection::Tcp {
+                stream,
+                server_socket: peer.details["socket"].clone(),
+            })
+        }
         Transport::Iroh => {
             let id = peer.details["endpoint_id"]
                 .as_str()
@@ -244,7 +296,7 @@ async fn client(
     let peer = peer(request, transport)?;
     *phase = "connect";
     let started = Instant::now();
-    let connection = connect(request, transport, &peer).await?;
+    let mut connection = connect(request, transport, &peer).await?;
     *phase = "first_data";
     let first = natbench_transport_protocol::frame(request, 0)?;
     ensure!(
@@ -283,7 +335,7 @@ async fn client(
     let measurement = Measurement {
         workload: request.workload.clone(),
         path: "direct".into(),
-        path_evidence: connection.evidence(),
+        path_evidence: connection.evidence()?,
         first_data_seconds,
         message_rtt_seconds: samples,
         bulk_verified_bytes: request.workload.bulk_bytes,
@@ -291,7 +343,7 @@ async fn client(
     };
     measurement.validate(request)?;
     *phase = "close";
-    connection.close().await;
+    connection.close().await?;
     Ok(measurement)
 }
 async fn server(request: &Request, transport: Transport) -> Result<()> {
@@ -301,6 +353,32 @@ async fn server(request: &Request, transport: Transport) -> Result<()> {
         .max(request.workload.payload_bytes) as usize
         + FRAME_HEADER;
     match transport {
+        Transport::Tcp => {
+            let socket = tcp::socket()?;
+            socket.bind(request.listen_address)?;
+            let listener = socket.listen(1)?;
+            let snapshot = tcp::snapshot(&socket2::SockRef::from(&listener))?;
+            publish_peer(
+                request,
+                transport,
+                json!({"address":request.peer_address.to_string(),"socket":snapshot}),
+            )?;
+            let (mut stream, _) = listener.accept().await?;
+            stream.set_nodelay(true)?;
+            eprintln!(
+                "{}",
+                json!({"event":"tcp_socket", "phase":"accepted", "socket":tcp::snapshot(&socket2::SockRef::from(&stream))?})
+            );
+            tcp::serve_frames(&mut stream, request, |stream| {
+                eprintln!(
+                    "{}",
+                    json!({"event":"tcp_socket", "phase":"verified", "socket":tcp::snapshot(&socket2::SockRef::from(stream))?})
+                );
+                Ok(())
+            }).await?;
+            // The controller owns service lifetime, including after client EOF.
+            std::future::pending::<()>().await;
+        }
         Transport::Iroh => {
             let endpoint = iroh_endpoint(request).await?;
             publish_peer(

@@ -55,7 +55,7 @@ cp "$repo/examples/github-actions/application.yml" "$repo/examples/github-action
 cp "$repo/scripts/check-application-demo.sh" "$stage/$name/scripts/"
 mkdir -p "$stage/$name/examples/transports/src" "$stage/$name/crates/transport-protocol/src"
 cp "$repo/examples/transports/Cargo.toml" "$repo/examples/transports/Cargo.lock" "$repo/examples/transports/build.rs" "$repo/examples/transports/direct.json" "$repo/examples/transports/conditions.json" "$stage/$name/examples/transports/"
-cp "$repo/examples/transports/src/main.rs" "$repo/examples/transports/src/connectivity.rs" "$stage/$name/examples/transports/src/"
+cp "$repo/examples/transports/src/main.rs" "$repo/examples/transports/src/tcp.rs" "$repo/examples/transports/src/connectivity.rs" "$stage/$name/examples/transports/src/"
 cp "$repo/crates/transport-protocol/Cargo.toml" "$repo/crates/transport-protocol/Cargo.lock" "$stage/$name/crates/transport-protocol/"
 cp "$repo/crates/transport-protocol/src/lib.rs" "$stage/$name/crates/transport-protocol/src/"
 cp "$repo/scripts/check-transport-adapters.sh" "$repo/scripts/check-transport-comparison.sh" "$repo/scripts/check-iroh-connectivity.sh" "$repo/scripts/check-network-comparison.sh" "$stage/$name/scripts/"

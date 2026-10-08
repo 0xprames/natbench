@@ -2,7 +2,7 @@
 
 Continue shipping independently useful development slices and previews while
 outside evaluation for stable v0.2.0 is pending. Current public binaries are
-v0.2.0-alpha.2; they do not include the new network-control inputs below.
+v0.2.0-alpha.2; they do not include the development network controls or TCP baseline.
 
 ## 1. Network conditions
 
@@ -14,19 +14,25 @@ v0.2.0-alpha.2; they do not include the new network-control inputs below.
   an unsupported request.
 - [ ] Publish a preview after native distribution/install validation.
 
-First-slice acceptance: real iroh/Quinn workloads prove upload and download delay,
+First-slice acceptance: real iroh/Quinn/TCP workloads prove upload and download delay,
 verified delivery with loss, and explicit failures under total loss. Old inputs
 remain supported; invalid controls fail early and fixture errors stay distinct
 from transport outcomes. Kernel evidence survives failure/interruption.
 
 ## 2. TCP baseline
 
-Add a third separately built adapter using the same fresh-payload verification
-and reliable-stream workload. Record kernel/socket settings and authentication
-semantics. Keep plain TCP's security differences visible; comparable workload
-semantics do not imply equal security or pure implementation overhead. Demonstrate
-successful TCP delivery when UDP is blocked, and actual failure under applicable
-network loss. Include the executable in native archives.
+- [x] Development baseline: separately built `--transport tcp` uses the same
+  fresh-payload verification and reliable-stream workload as iroh/Quinn. Records
+  kernel release, congestion control, socket snapshots, framing and no-TLS/
+  no-authentication semantics; uses one fresh connection with `TCP_NODELAY`.
+- [x] Verification: TCP delivers through blocked UDP while direct QUIC fails; all
+  three deliver under directional delay/random loss and fail under total loss.
+  Native archive CI tests the packaged executable and rebuildable source.
+- [ ] Publish the TCP baseline and network controls in a validated native preview.
+
+Comparable workload semantics do not imply equal security or pure implementation
+overhead. Socket buffer values are snapshots because kernel autotuning can change
+them; request/response framing differs between TCP and QUIC.
 
 ## 3. Regression gates and saved comparisons
 

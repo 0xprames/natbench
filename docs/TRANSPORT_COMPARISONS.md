@@ -22,8 +22,10 @@ measure fixture execution, independently of adapter application timings.
 | Direct transport workload | Reachable endpoints, peer information, payloads, reliability requirements, network condition | Delivery, first-data latency, message RTT and verified goodput over a direct path |
 | Complete connectivity stack | Peer placement, available signaling/relay services, workload and deadline | Discovery/traversal success, direct versus relayed delivery, fallback and recovery |
 
-Start with iroh and a plain QUIC reference implementation for the direct workload.
-Add TCP as a reliable stream baseline; datagram workloads form a separate cohort.
+Current source includes iroh, Quinn and a plain TCP reliable-stream baseline
+for direct workloads; the published alpha.2 contains iroh and Quinn only. TCP
+records kernel/socket settings and its lack of encryption/authentication. Datagram
+workloads form a separate cohort.
 An external executable adapter lets a custom implementation enter the same
 experiment without publishing its implementation or changing natbench's core.
 

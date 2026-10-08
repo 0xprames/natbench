@@ -17,6 +17,14 @@
         "--transport",
         "quinn"
       ]
+    },
+    {
+      "name": "tcp",
+      "argv": [
+        "./target/release/natbench-transport-adapters",
+        "--transport",
+        "tcp"
+      ]
     }
   ],
   "cases": [
