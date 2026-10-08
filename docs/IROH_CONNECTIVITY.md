@@ -1,6 +1,6 @@
 # Test real iroh traversal and relay delivery
 
-The v0.2.0-alpha.2 preview includes `natbench-iroh-connectivity`, a standalone
+The v0.3.0-alpha.1 preview includes `natbench-iroh-connectivity`, a standalone
 Rust example using pinned iroh and iroh-relay 1.3.0. It runs as ordinary application
 programs; natbench's core does not link either library. The older v0.2.0-alpha.1
 predates this example. The Linux fixture needs namespace privileges, iproute2,

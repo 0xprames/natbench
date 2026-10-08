@@ -1,7 +1,8 @@
 # Verify delivery after a scheduled outage
 
-Current development source adds application input **5** and a separately built
-`natbench-transport-recovery` example. The published v0.2.0-alpha.2 predates it.
+The v0.3.0-alpha.1 preview includes application input **5** and a separately built
+`natbench-transport-recovery` example. The older v0.2.0-alpha.2 predates it.
+See [native-bundle usage](TRANSPORT_QUICKSTART.md); the commands below build from source.
 
 ```sh
 cargo build --locked

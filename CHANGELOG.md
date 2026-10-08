@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.0 development
+## 0.3.0-alpha.1
+
+Evaluation preview of the first network, TCP, regression-gate, recovery and
+adapter-starter slices. Native x86-64/ARM64 bundles include all four example
+executables. Outside evaluation and remaining M3 gates stay open.
 
 - Application input 5 schedules declared link changes with fresh per-case context,
   atomic transition markers and monotonic/kernel evidence, including partial failure

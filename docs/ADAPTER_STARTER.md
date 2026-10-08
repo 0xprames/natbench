@@ -1,13 +1,13 @@
 # Build an independent Rust transport adapter
 
-Current development source adds a copyable Rust project, `natbench conform`, and
-a bundled starter executable. The published v0.2.0-alpha.2 predates these additions.
+The v0.3.0-alpha.1 preview includes a copyable Rust project, `natbench conform`, and
+a bundled starter executable. The older v0.2.0-alpha.2 predates these additions.
 The starter uses plain Linux TCP without TLS or endpoint authentication. Replace
 its transport module with your library while retaining the executable contract.
 
 ## Create a separate project
 
-From the natbench checkout or an extracted development bundle:
+From the natbench checkout or an extracted preview bundle:
 
 ```sh
 scripts/new-adapter.sh ../custom-transport-adapter custom-transport-adapter

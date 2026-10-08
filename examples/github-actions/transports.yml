@@ -14,7 +14,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y iproute2 nftables conntrack tcpdump python3
       - name: Download the pinned native bundle
         env:
-          NATBENCH_VERSION: 0.2.0-alpha.2
+          NATBENCH_VERSION: 0.3.0-alpha.1
         run: |
           directory=$(mktemp -d)
           cd "$directory"
@@ -30,13 +30,19 @@ jobs:
       - name: Check kernel capabilities
         run: sudo "$NATBENCH_BUNDLE/natbench" doctor --probe --json > natbench-doctor.json
       - name: Require matched direct-stream delivery
-        run: sudo "$NATBENCH_BUNDLE/natbench" compare "$NATBENCH_BUNDLE/examples/transports/direct.json" --runs 4 --capture --artifacts comparison-artifacts
+        run: sudo "$NATBENCH_BUNDLE/natbench" compare "$NATBENCH_BUNDLE/examples/transports/direct.json" --runs 3 --capture --artifacts comparison-artifacts
+      - name: Assess direct-stream requirements
+        run: |
+          sudo chown -R -- "$(id -u):$(id -g)" comparison-artifacts
+          "$NATBENCH_BUNDLE/natbench" assess comparison-artifacts/report.json --policy "$NATBENCH_BUNDLE/examples/transports/regression-policy.json" --artifacts assessment-artifacts
+      - name: Verify fresh delivery after scheduled outages
+        run: sudo "$NATBENCH_BUNDLE/scripts/check-transport-recovery.sh" "$NATBENCH_BUNDLE/natbench" "$NATBENCH_BUNDLE/bin/natbench-transport-recovery" transport-recovery-artifacts
       - name: Verify real iroh traversal, relay delivery and interruption
         run: sudo "$NATBENCH_BUNDLE/scripts/check-iroh-connectivity.sh" "$NATBENCH_BUNDLE/natbench" "$NATBENCH_BUNDLE/bin/natbench-iroh-connectivity" iroh-connectivity-artifacts
       - name: Make private evidence readable by the artifact uploader
         if: always()
         run: |
-          for directory in comparison-artifacts iroh-connectivity-artifacts; do
+          for directory in comparison-artifacts iroh-connectivity-artifacts assessment-artifacts transport-recovery-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -49,3 +55,5 @@ jobs:
             natbench-doctor.json
             comparison-artifacts/
             iroh-connectivity-artifacts/
+            assessment-artifacts/
+            transport-recovery-artifacts/

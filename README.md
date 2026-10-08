@@ -7,9 +7,9 @@ service. Declare readiness and delivery requirements; natbench keeps JSON/JUnit
 reports, process logs, timelines, and optional packet captures when they fail.
 The runner is written in Rust; your application can use any language.
 
-[Try transport comparisons](docs/ADAPTERS.md) ·
+[Try the transport quickstart](docs/TRANSPORT_QUICKSTART.md) ·
 [Diagnose an application failure](docs/GETTING_STARTED.md) ·
-[Download Linux binaries](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.2) ·
+[Download Linux binaries](https://github.com/0xprames/natbench/releases/tag/v0.3.0-alpha.1) ·
 [Copy the CI workflow](examples/github-actions/application.yml)
 
 ## See a failure and its evidence
@@ -33,7 +33,7 @@ client and WAN captures to locate the blocked traffic. A separate
 [persistent Rust client example](examples/udp-recovery/scenario.json) checks
 fresh application data after a service outage.
 
-The application runner is an **experimental v0.2.0-alpha.2 preview**. It requires
+The application runner is an **experimental v0.3.0-alpha.1 preview**. It requires
 Linux, root and namespace/network administration privileges, iproute2 and nftables;
 packet capture also requires tcpdump. The install walkthrough includes conntrack.
 Programs share the host filesystem and caller privileges. Native x86-64 and ARM64
@@ -55,14 +55,14 @@ or a complete RFC conformance suite. It ships as a Rust binary using Linux netwo
 namespaces and nftables. The same executable supplies the UDP endpoints and relay.
 No application daemon or container runtime is required.
 
-The [v0.2.0-alpha.2 preview](https://github.com/0xprames/natbench/releases/tag/v0.2.0-alpha.2)
+The [v0.3.0-alpha.1 preview](https://github.com/0xprames/natbench/releases/tag/v0.3.0-alpha.1)
 adds ordinary application scenarios, repeated runs and bounded packet evidence.
 [Start with a reproducible application failure](docs/GETTING_STARTED.md), then
 copy the [GitHub Actions example](examples/github-actions/application.yml) for CI.
 The preview includes [real transport comparison](docs/TRANSPORT_COMPARISONS.md):
 iroh, Quinn, and independently built custom adapters under shared direct-stream
 workloads. It also includes [real iroh traversal/relay application tests](docs/IROH_CONNECTIVITY.md).
-Native bundles contain both example executables, so these tests need no Rust build.
+Native bundles contain the reference/connectivity/recovery/starter executables, so these tests need no Rust build.
 Stable launch also requires
 [outside evaluation](docs/EVALUATION.md). See the
 [milestone release and launch plan](docs/ROADMAP.md) for the release gates.
@@ -97,7 +97,7 @@ measurement commands keep their original exit behavior.
 
 ## External application scenarios
 
-The v0.2.0-alpha.2 preview accepts input schemas 2 and 3 for ordinary application
+The v0.3.0-alpha.1 preview accepts input schemas 2–5 for ordinary application
 executables: declared readiness, bounded commands, stop/restart steps, assertions,
 logs and timelines. Schema 3 adds output/exit waits and supervised downtime steps.
 See [application scenarios](docs/APPLICATIONS.md), the
@@ -121,13 +121,13 @@ cleanup. See [repetition reports and limits](docs/REPETITIONS.md).
 
 ## Compare real transports
 
-The v0.2.0-alpha.2 bundle compares standalone iroh and Quinn adapters using the
+The v0.3.0-alpha.1 bundle compares standalone iroh, Quinn and TCP adapters using the
 same verified reliable-stream workload, deadlines and NAT profiles. The core
 remains independent of iroh; the archive includes native adapters under `bin/`.
 From the extracted archive, after installing the fixture prerequisites:
 
 ```sh
-sudo ./natbench compare examples/transports/direct.json --runs 4 --capture --artifacts ./comparison-001
+sudo ./natbench compare examples/transports/direct.json --runs 3 --capture --artifacts ./comparison-001
 sudo scripts/check-iroh-connectivity.sh ./natbench ./bin/natbench-iroh-connectivity ./iroh-001
 ```
 
@@ -140,22 +140,24 @@ relay interruption. It keeps these results separate from direct-path performance
 See [source builds and the adapter contract](docs/ADAPTERS.md), and copy the
 [transport CI workflow](examples/github-actions/transports.yml).
 
-## Development transport and network controls
+## Network conditions, regression gates and recovery
 
-Source builds after alpha.2 add [matched directional delay and packet loss](docs/NETWORK_CONDITIONS.md)
-to comparisons, plus reusable named link conditions for ordinary application
-scenarios and repetitions. Kernel settings/counters accompany the existing evidence;
-older input versions remain supported. The source comparison also includes a
-plain TCP baseline with kernel/socket and security metadata. TCP delivers through
-blocked UDP; total loss prevents delivery for all three reference adapters. These
-additions are not in the published alpha.2. The [delivery queue](docs/DELIVERY_QUEUE.md)
-tracks further controls, recovery and the external adapter starter. Source builds
-also add [offline regression gates and saved baselines](docs/REGRESSION_GATES.md):
-check delivery rate, p95 RTT and verified goodput with explicit sample requirements.
-The [independent Rust starter](docs/ADAPTER_STARTER.md) generates a separate project
-and `conform` checks one executable across workload bounds and failure conditions.
-[Scheduled outage and recovery experiments](docs/TRANSPORT_RECOVERY.md) verify fresh
-data on established iroh, Quinn and TCP connections after a network change.
+The preview adds [matched directional delay and packet loss](docs/NETWORK_CONDITIONS.md)
+to comparisons and named link conditions to ordinary application scenarios.
+Kernel settings/counters accompany the evidence. A plain TCP baseline records
+kernel/socket and security metadata alongside iroh/Quinn. TCP delivers through
+blocked UDP; total loss prevents delivery for all three reference adapters.
+
+[Offline regression gates and saved baselines](docs/REGRESSION_GATES.md) check
+coverage, delivery rate, p95 RTT and verified goodput with explicit requirements.
+[Scheduled recovery experiments](docs/TRANSPORT_RECOVERY.md) verify fresh message
+and bulk data on established connections after upload/download/bidirectional outages.
+The [independent Rust starter](docs/ADAPTER_STARTER.md) generates a separate project;
+`conform` checks one executable across workload bounds and total-loss failures.
+
+[Try the transport quickstart](docs/TRANSPORT_QUICKSTART.md) from the native bundle,
+then replace the starter backend with your own transport. The
+[delivery queue](docs/DELIVERY_QUEUE.md) records remaining network/recovery work.
 
 ## Packet evidence
 
@@ -197,7 +199,7 @@ both architectures pass tests and
 extracted-binary smoke checks; prerelease tags publish prerelease entries. No tag
 or release is created by a branch build. The M1 stable distribution is
 [v0.1.1](https://github.com/0xprames/natbench/releases/tag/v0.1.1); application
-scenarios are available in the v0.2.0-alpha.2 preview. Stable v0.2.0 requires the M2 launch gate.
+scenarios are available in the v0.3.0-alpha.1 preview. Stable v0.2.0 requires the M2 launch gate.
 
 ## Quick start
 

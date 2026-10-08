@@ -5,12 +5,13 @@ able to ask how iroh, an independently built transport, and reference transports
 deliver the same application workload under declared network conditions. CI runs
 and retains these experiments; it is also useful to run them interactively.
 
-The v0.2.0-alpha.2 preview implements the executable request/event contract,
-standalone pinned iroh/Quinn adapters and `natbench compare` for matched direct
+The v0.3.0-alpha.1 preview implements the executable request/event contract,
+standalone pinned iroh/Quinn adapters and a plain TCP baseline and `natbench compare` for matched direct
 client-to-WAN workloads. See [usage, measurements and adapter integration](ADAPTERS.md).
 [Local iroh relay/traversal tests](IROH_CONNECTIVITY.md) now run through application
-scenarios with selected-path and verified-delivery evidence. Changing-network and
-generic cross-stack connectivity cohorts below remain planned.
+scenarios with selected-path and verified-delivery evidence. [Scheduled link-outage recovery](TRANSPORT_RECOVERY.md) now verifies fresh data on
+existing connections. Broader changing-network and generic cross-stack cohorts
+below remain planned.
 The older v0.2.0-alpha.1 predates these additions. Native bundles include the
 adapter and connectivity executables alongside their source. Existing case wall times continue to
 measure fixture execution, independently of adapter application timings.
@@ -22,8 +23,8 @@ measure fixture execution, independently of adapter application timings.
 | Direct transport workload | Reachable endpoints, peer information, payloads, reliability requirements, network condition | Delivery, first-data latency, message RTT and verified goodput over a direct path |
 | Complete connectivity stack | Peer placement, available signaling/relay services, workload and deadline | Discovery/traversal success, direct versus relayed delivery, fallback and recovery |
 
-Current source includes iroh, Quinn and a plain TCP reliable-stream baseline
-for direct workloads; the published alpha.2 contains iroh and Quinn only. TCP
+The preview includes iroh, Quinn and a plain TCP reliable-stream baseline
+for direct workloads. TCP
 records kernel/socket settings and its lack of encryption/authentication. Datagram
 workloads form a separate cohort.
 An external executable adapter lets a custom implementation enter the same
