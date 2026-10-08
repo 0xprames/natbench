@@ -154,6 +154,8 @@ also add [offline regression gates and saved baselines](docs/REGRESSION_GATES.md
 check delivery rate, p95 RTT and verified goodput with explicit sample requirements.
 The [independent Rust starter](docs/ADAPTER_STARTER.md) generates a separate project
 and `conform` checks one executable across workload bounds and failure conditions.
+[Scheduled outage and recovery experiments](docs/TRANSPORT_RECOVERY.md) verify fresh
+data on established iroh, Quinn and TCP connections after a network change.
 
 ## Packet evidence
 

@@ -1784,6 +1784,7 @@ dependencies = [
  "clap",
  "iroh",
  "iroh-relay",
+ "libc",
  "natbench-transport-protocol",
  "quinn",
  "rcgen",

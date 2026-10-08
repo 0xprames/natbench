@@ -171,3 +171,17 @@ fn versioned_network_inputs_are_closed_and_comparison_one_stays_unchanged() {
         .unwrap();
     assert!(!validator(include_str!("../schemas/scenario-v3.schema.json")).is_valid(&application));
 }
+
+#[test]
+fn scheduled_recovery_requires_input_five_and_closed_network_actions() {
+    let input: Value =
+        serde_json::from_str(include_str!("../examples/transports/recovery.json")).unwrap();
+    let schema = validator(include_str!("../schemas/scenario-v5.schema.json"));
+    schema.validate(&input).unwrap();
+    let mut old = input.clone();
+    old["schema_version"] = 4.into();
+    assert!(!validator(include_str!("../schemas/scenario-v4.schema.json")).is_valid(&old));
+    let mut typo = input;
+    typo["cases"][0]["steps"][2]["network"]["links"][0]["conditions"]["drop"] = true.into();
+    assert!(!schema.is_valid(&typo));
+}

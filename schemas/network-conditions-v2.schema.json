@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/network-conditions-v2.schema.json",
+  "title": "natbench scheduled network conditions version 2",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "kind": {
+      "const": "network_conditions"
+    },
+    "backend": {
+      "const": "linux_tc_netem"
+    },
+    "randomness": {
+      "type": "string"
+    },
+    "tc_version": {
+      "type": "string"
+    },
+    "configured": {
+      "type": "boolean"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "interrupted": {
+      "type": "boolean"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "links": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "properties": {
+          "egress": {
+            "enum": [
+              "client_a",
+              "router_a_lan",
+              "router_a_wan",
+              "wan_router_a",
+              "client_b",
+              "router_b_lan",
+              "router_b_wan",
+              "wan_router_b"
+            ]
+          },
+          "role": {
+            "enum": [
+              "a",
+              "b",
+              "ra",
+              "rb",
+              "wan"
+            ]
+          },
+          "device": {
+            "enum": [
+              "eth0",
+              "lan",
+              "wan",
+              "a",
+              "b"
+            ]
+          },
+          "requested": {
+            "$ref": "#/$defs/conditions"
+          },
+          "queue_limit_packets": {
+            "enum": [
+              4096,
+              null
+            ]
+          },
+          "configure_argv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "configured": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_conditions": {
+            "$ref": "#/$defs/conditions"
+          },
+          "initial_configured": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "egress",
+          "role",
+          "device",
+          "requested",
+          "queue_limit_packets",
+          "configure_argv",
+          "installed",
+          "before",
+          "configured",
+          "after",
+          "current_conditions",
+          "initial_configured"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "transitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "kind",
+          "id",
+          "run_id",
+          "started_monotonic_ns",
+          "applied_monotonic_ns",
+          "complete",
+          "links",
+          "error"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 1
+          },
+          "kind": {
+            "const": "network_transition"
+          },
+          "id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{32}$"
+          },
+          "started_monotonic_ns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "applied_monotonic_ns": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "links": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "required": [
+                "egress",
+                "requested",
+                "configure_argv",
+                "applied",
+                "before",
+                "after"
+              ],
+              "properties": {
+                "egress": {
+                  "type": "string"
+                },
+                "requested": {
+                  "type": "object"
+                },
+                "configure_argv": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "applied": {
+                  "type": "boolean"
+                },
+                "before": {
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "after": {
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "backend",
+    "randomness",
+    "tc_version",
+    "configured",
+    "complete",
+    "interrupted",
+    "errors",
+    "links",
+    "transitions"
+  ],
+  "additionalProperties": true,
+  "$defs": {
+    "conditions": {
+      "type": "object",
+      "properties": {
+        "delay_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "loss_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "delay_ms",
+        "loss_percent"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

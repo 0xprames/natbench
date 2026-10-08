@@ -32,7 +32,7 @@ jobs:
       - run: go build -o examples/udp-echo/udp-echo examples/udp-echo/main.go
       - run: cargo test --locked
       - run: cargo test --locked --manifest-path crates/transport-protocol/Cargo.toml
-      - run: cargo test --locked --manifest-path examples/transports/Cargo.toml --bins
+      - run: cargo test --locked --manifest-path examples/transports/Cargo.toml
       - run: cargo build --release --locked --manifest-path examples/transports/Cargo.toml
       - run: cargo test --locked --manifest-path examples/adapter-starter/Cargo.toml
       - run: cargo build --release --locked --manifest-path examples/adapter-starter/Cargo.toml
@@ -78,6 +78,7 @@ jobs:
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-iroh-connectivity.sh" "$binary" "$bundle/bin/natbench-iroh-connectivity" iroh-connectivity-artifacts
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-network-comparison.sh" "$binary" "$bundle/bin/natbench-transport-adapters" network-comparison-artifacts
           sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-adapter-starter.sh" "$binary" "$bundle/bin/natbench-adapter-starter" adapter-starter-artifacts
+          sudo env PATH=/usr/sbin:/usr/bin:/sbin:/bin "$bundle/scripts/check-transport-recovery.sh" "$binary" "$bundle/bin/natbench-transport-recovery" transport-recovery-artifacts
           # Included source still rebuilds independently from the controller.
           "$bundle/scripts/new-adapter.sh" standalone-adapter custom-transport-adapter
           cargo build --release --locked --manifest-path standalone-adapter/Cargo.toml
@@ -91,7 +92,7 @@ jobs:
       - name: Allow the runner to read private packet evidence
         if: always()
         run: |
-          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts bundled-comparison-artifacts network-comparison-artifacts regression-artifacts adapter-starter-artifacts standalone-adapter-artifacts; do
+          for directory in application-artifacts repetition-artifacts diagnostic-demo-artifacts transport-comparison-artifacts iroh-connectivity-artifacts bundled-comparison-artifacts network-comparison-artifacts regression-artifacts adapter-starter-artifacts standalone-adapter-artifacts transport-recovery-artifacts; do
             if [[ -d "$directory" ]]; then
               sudo chown -R -- "$(id -u):$(id -g)" "$directory"
             fi
@@ -126,6 +127,7 @@ jobs:
             adapter-starter-artifacts/
             standalone-adapter-artifacts/
             standalone-adapter-report.json
+            transport-recovery-artifacts/
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: build

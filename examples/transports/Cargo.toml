@@ -14,7 +14,12 @@ path = "src/main.rs"
 name = "natbench-iroh-connectivity"
 path = "src/connectivity.rs"
 
+[[bin]]
+name = "natbench-transport-recovery"
+path = "src/recovery.rs"
+
 [dependencies]
+libc = "0.2"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 iroh = { version = "=1.3.0", default-features = false, features = ["tls-ring"] }

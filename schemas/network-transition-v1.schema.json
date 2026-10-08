@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/0xprames/natbench/main/schemas/network-transition-v1.schema.json",
+  "title": "natbench network transition version 1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "id",
+    "run_id",
+    "started_monotonic_ns",
+    "applied_monotonic_ns",
+    "complete",
+    "links",
+    "error"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "network_transition"
+    },
+    "id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{32}$"
+    },
+    "started_monotonic_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "applied_monotonic_ns": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "links": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "egress",
+          "requested",
+          "configure_argv",
+          "applied",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "egress": {
+            "type": "string"
+          },
+          "requested": {
+            "type": "object"
+          },
+          "configure_argv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "before": {
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "after": {
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

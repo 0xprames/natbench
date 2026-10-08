@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/0xprames/natbench/main/schemas/transport-recovery-event-v1.schema.json",
+  "title": "natbench reference recovery event version 1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "run_id",
+    "implementation",
+    "event",
+    "details"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "transport_recovery_event"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{32}$"
+    },
+    "implementation": {
+      "type": "object"
+    },
+    "event": {
+      "enum": [
+        "initial_delivered",
+        "probe_started",
+        "recovered",
+        "failed"
+      ]
+    },
+    "details": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "recovered"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "required": [
+              "restored_applied_monotonic_ns",
+              "fresh_sent_monotonic_ns",
+              "fresh_delivered_monotonic_ns",
+              "event_to_fresh_delivery_seconds",
+              "fresh_sequence",
+              "bulk_sequence",
+              "payload_verified_bytes",
+              "bulk_verified_bytes",
+              "existing_connection_survived",
+              "connection_attempts",
+              "path",
+              "path_before",
+              "path_after"
+            ],
+            "properties": {
+              "event_to_fresh_delivery_seconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "fresh_sequence": {
+                "const": 2
+              },
+              "bulk_sequence": {
+                "const": 3
+              },
+              "payload_verified_bytes": {
+                "const": 128
+              },
+              "bulk_verified_bytes": {
+                "const": 16384
+              },
+              "existing_connection_survived": {
+                "const": true
+              },
+              "connection_attempts": {
+                "const": 1
+              },
+              "path": {
+                "const": "direct"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
