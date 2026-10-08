@@ -57,12 +57,16 @@ and application lifecycle foundations; include real transport scenarios.
 
 ## 5. External adapter starter and conformance checks
 
-Provide a small independently built Rust adapter template and a checker for the
-request/bootstrap/JSONL contract, lifecycle, failure/unsupported events and payload
-verification. Run against a real fixture for delivery assertions; synthetic events
-only validate parsing/orchestration. The implementation can live separately; no
-private project source is required in this repository. Add a copyable CI example
-and clear diagnostics for common integration mistakes.
+- [x] Independent Rust project generator with vendored shared protocol, replaceable
+  transport module, fresh byte verification and a copyable CI workflow.
+- [x] Single-adapter `conform` checks minimum/typical/maximum workloads behind
+  preserve/random NAT and expected total-loss failures. Parsing/lifecycle checks
+  share the real fixture runner; unsupported and cancellation stay nonpassing.
+- [ ] Publish the bundled starter, generator and checker in a native preview.
+
+See [the adapter starter](ADAPTER_STARTER.md). The initial backend is plain TCP;
+other libraries stay separately built. The checker validates contract claims;
+honest receiver byte verification remains the adapter's responsibility.
 
 Deliver each slice as a PR with scenario-level evidence. Merge after checks pass,
 then alert the maintainer at a useful outcome. Outside feedback can change priority;

@@ -152,6 +152,8 @@ additions are not in the published alpha.2. The [delivery queue](docs/DELIVERY_Q
 tracks further controls, recovery and the external adapter starter. Source builds
 also add [offline regression gates and saved baselines](docs/REGRESSION_GATES.md):
 check delivery rate, p95 RTT and verified goodput with explicit sample requirements.
+The [independent Rust starter](docs/ADAPTER_STARTER.md) generates a separate project
+and `conform` checks one executable across workload bounds and failure conditions.
 
 ## Packet evidence
 

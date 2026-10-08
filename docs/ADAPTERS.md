@@ -215,3 +215,11 @@ current-source comparison report. All cohorts remain required; delivery, p95 RTT
 and minimum verified goodput have explicit sample counts. Compatibility checks
 recorded workload, topology, conditions, machine, security and transport settings.
 The published alpha.2 does not include this command or the necessary metadata.
+
+## Independent Rust starter and conformance
+
+Current source includes [a project generator and `conform` checker](ADAPTER_STARTER.md)
+for a separately built adapter. It covers declared workload bounds, real delivery
+and total-loss failures with the same contract/lifecycle validation. Start with
+plain TCP, replace the transport module, then add your executable to a comparison.
+The published alpha.2 predates the starter/checker.

@@ -26,6 +26,16 @@ struct Network {
 }
 #[derive(Subcommand)]
 enum Action {
+    /// Check one executable's direct-stream contract, workload bounds and failure reporting.
+    Conform {
+        adapter: PathBuf,
+        #[arg(long)]
+        artifacts: PathBuf,
+        #[arg(long,default_value_t=1,value_parser=clap::value_parser!(u32).range(1..=100))]
+        runs: u32,
+        #[arg(long,num_args=0..=1,require_equals=true,default_missing_value="1000",value_parser=clap::value_parser!(u32).range(1..=100_000))]
+        capture: Option<u32>,
+    },
     /// Assess every comparison cohort against explicit requirements, optionally a saved baseline.
     Assess {
         report: PathBuf,
@@ -205,6 +215,23 @@ enum Action {
 }
 fn execute(action: Action) -> Result<i32> {
     match action {
+        Action::Conform {
+            adapter,
+            artifacts,
+            runs,
+            capture,
+        } => {
+            let report = match natbench::conform::run(&adapter, &artifacts, runs, capture) {
+                Ok(report) => report,
+                Err(error) => {
+                    eprintln!("natbench conform: {error:#}");
+                    return Ok(2);
+                }
+            };
+            eprint!("{}", report.readable());
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(report.exit_code());
+        }
         Action::Assess {
             report,
             policy,

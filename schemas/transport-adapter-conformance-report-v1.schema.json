@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/0xprames/natbench/blob/main/schemas/transport-adapter-conformance-report-v1.schema.json",
+  "title": "Adapter conformance verdicts version 1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "const": "transport_adapter_conformance_report"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "interrupted": {
+      "type": "boolean"
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2,
+        3,
+        130
+      ]
+    },
+    "verdicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          },
+          "case": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected": {
+            "enum": [
+              "passed",
+              "transport_failed"
+            ]
+          },
+          "observed": {
+            "anyOf": [
+              {
+                "enum": [
+                  "passed",
+                  "transport_failed",
+                  "unsupported",
+                  "infrastructure_failed",
+                  "interrupted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 0
+          }
+        },
+        "required": [
+          "index",
+          "case",
+          "expected",
+          "observed",
+          "passed",
+          "messages"
+        ],
+        "additionalProperties": true
+      },
+      "minItems": 1,
+      "maxItems": 4096
+    },
+    "runs_report": {
+      "const": "runs/report.json"
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "complete",
+    "interrupted",
+    "exit_code",
+    "verdicts",
+    "runs_report"
+  ],
+  "additionalProperties": true
+}

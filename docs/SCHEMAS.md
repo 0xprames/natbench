@@ -211,3 +211,17 @@ adds CPU identity and available parallelism. Older output readers can ignore the
 additions. Assessment needs the descriptors, and baseline comparison needs machine
 metadata; rerun older reports with current source. No existing input version changes.
 See [requirements, baseline compatibility and exits](REGRESSION_GATES.md).
+
+## Development adapter conformance
+
+[Adapter config 1](../schemas/transport-adapter-config-v1.schema.json) has kind
+`transport_adapter_config` and one closed executable declaration. The generated
+[plan 1](../schemas/transport-adapter-conformance-plan-v1.schema.json), kind
+`transport_adapter_conformance_plan`, is execution evidence. [Raw runs 1](../schemas/transport-adapter-conformance-runs-v1.schema.json)
+uses kind `transport_adapter_conformance_runs`; [primary verdicts 1](../schemas/transport-adapter-conformance-report-v1.schema.json)
+uses kind `transport_adapter_conformance_report`. Expected total-loss transport
+failures remain raw failures while their conformance verdict passes. Unsupported
+coverage and interruption never pass. Require the primary report/exit, and publish
+its JUnit rather than the diagnostic nested outcome JUnit. Existing comparison
+inputs still require 2–8 adapters; the generated conformance plan is a separate kind
+and cannot be rerun as a comparison. See [the starter guide](ADAPTER_STARTER.md).

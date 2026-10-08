@@ -54,7 +54,7 @@ struct Case {
 impl Config {
     fn parse(input: &[u8]) -> Result<Self> {
         let header: serde_json::Value = serde_json::from_slice(input)?;
-        if header["schema_version"] == 1 {
+        if header["schema_version"] == 1 && header["kind"] == "transport_comparison" {
             ensure!(
                 !header["cases"]
                     .as_array()
@@ -66,14 +66,20 @@ impl Config {
         }
         Ok(serde_json::from_slice(input)?)
     }
-    fn validate(&mut self, base: &Path) -> Result<()> {
+    fn validate(&mut self, base: &Path, minimum_adapters: usize) -> Result<()> {
         ensure!(
-            matches!(self.schema_version, 1 | 2) && self.kind == "transport_comparison",
+            (minimum_adapters == 2
+                && matches!(self.schema_version, 1 | 2)
+                && self.kind == "transport_comparison")
+                || (minimum_adapters == 1
+                    && self.schema_version == 1
+                    && self.kind == "transport_adapter_conformance_plan"),
             "unsupported comparison input"
         );
         ensure!(
-            (2..=8).contains(&self.adapters.len()) && (1..=32).contains(&self.cases.len()),
-            "comparison needs 2–8 adapters and 1–32 cases"
+            (minimum_adapters..=8).contains(&self.adapters.len())
+                && (1..=32).contains(&self.cases.len()),
+            "invalid adapter or case count"
         );
         let mut names = HashSet::new();
         for adapter in &mut self.adapters {
@@ -105,10 +111,10 @@ impl Config {
         }
         names.clear();
         for case in &self.cases {
-            if self.schema_version == 2 {
+            if self.schema_version == 2 || self.kind == "transport_adapter_conformance_plan" {
                 case.network
                     .as_ref()
-                    .context("comparison schema 2 requires network on every case")?
+                    .context("this experiment requires network on every case")?
                     .links()
                     .prerequisites()?;
             }
@@ -601,15 +607,43 @@ fn attempt(
 }
 /// Execute cyclically rotated adapter order with fresh fixtures and preserved evidence.
 pub fn run(path: &Path, artifacts: &Path, runs: u32, capture: Option<u32>) -> Result<Report> {
-    ensure!((1..=100).contains(&runs), "runs must be 1–100");
     let input = fs::read(path)?;
-    let mut config = Config::parse(&input)?;
     let base = fs::canonicalize(
         path.parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new(".")),
     )?;
-    config.validate(&base)?;
+    run_input(&input, &base, artifacts, runs, capture, false)
+}
+// Conformance shares the same fresh-fixture runner but has a distinct output kind.
+pub(crate) fn preflight_input(
+    input: &[u8],
+    base: &Path,
+    runs: u32,
+    capture: Option<u32>,
+    conformance: bool,
+) -> Result<()> {
+    ensure!((1..=100).contains(&runs), "runs must be 1–100");
+    let mut config = Config::parse(input)?;
+    config.validate(base, if conformance { 1 } else { 2 })?;
+    ensure!(
+        config.cases.len() * config.adapters.len() * runs as usize <= 4096,
+        "attempt budget exceeds 4096"
+    );
+    capture.map(crate::capture::Options::new).transpose()?;
+    Ok(())
+}
+pub(crate) fn run_input(
+    input: &[u8],
+    base: &Path,
+    artifacts: &Path,
+    runs: u32,
+    capture: Option<u32>,
+    conformance: bool,
+) -> Result<Report> {
+    ensure!((1..=100).contains(&runs), "runs must be 1–100");
+    let mut config = Config::parse(input)?;
+    config.validate(base, if conformance { 1 } else { 2 })?;
     ensure!(
         config.cases.len() * config.adapters.len() * runs as usize <= 4096,
         "comparison budget exceeds 4096 attempts; split the matrix into smaller runs"
@@ -623,8 +657,12 @@ pub fn run(path: &Path, artifacts: &Path, runs: u32, capture: Option<u32>) -> Re
         .write(true)
         .create_new(true)
         .mode(0o600)
-        .open(root.join("comparison.json"))?
-        .write_all(&input)?;
+        .open(root.join(if conformance {
+            "plan.json"
+        } else {
+            "comparison.json"
+        }))?
+        .write_all(input)?;
     let mut planned = Vec::new();
     let mut summaries = Vec::new();
     for case in &config.cases {
@@ -655,7 +693,7 @@ pub fn run(path: &Path, artifacts: &Path, runs: u32, capture: Option<u32>) -> Re
             }
         }
     }
-    let mut report = Report { schema_version:1,kind:"transport_comparison_report",topology:"ipv4_client_a_to_wan",workload_semantics:"direct reliable streams; fresh endpoints; bulk includes receiver verification and acknowledgement",environment,case_conditions:config.cases.iter().map(|case|CaseConditions{name:case.name.clone(),profile:case.profile,network:case.network.clone(),deadline_ms:Some(case.deadline_ms),workload:Some(case.workload.clone())}).collect(),planned,attempts:Vec::new(),active_attempt:None,complete:false,interrupted:false,summaries };
+    let mut report = Report { schema_version:1,kind:if conformance {"transport_adapter_conformance_runs"} else {"transport_comparison_report"},topology:"ipv4_client_a_to_wan",workload_semantics:"direct reliable streams; fresh endpoints; bulk includes receiver verification and acknowledgement",environment,case_conditions:config.cases.iter().map(|case|CaseConditions{name:case.name.clone(),profile:case.profile,network:case.network.clone(),deadline_ms:Some(case.deadline_ms),workload:Some(case.workload.clone())}).collect(),planned,attempts:Vec::new(),active_attempt:None,complete:false,interrupted:false,summaries };
     report.save(&root)?;
     for index in 0..report.planned.len() {
         if crate::cancellation().load(Ordering::Relaxed) {

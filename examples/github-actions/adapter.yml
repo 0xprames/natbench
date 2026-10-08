@@ -1,0 +1,43 @@
+# Copy into an independently built Rust adapter repository containing adapter.json.
+# Pin natbench_ref to an evaluated tag/commit for reproducible CI.
+name: Adapter conformance
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      natbench_ref:
+        description: Tested natbench tag or commit (development default main)
+        default: main
+        type: string
+permissions:
+  contents: read
+jobs:
+  conform:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: 0xprames/natbench
+          ref: ${{ inputs.natbench_ref || 'main' }}
+          path: .natbench
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y iproute2 nftables conntrack tcpdump
+      - run: cargo build --release --locked
+      - run: cargo build --release --locked --manifest-path .natbench/Cargo.toml
+      - run: sudo .natbench/target/release/natbench conform adapter.json --capture --artifacts adapter-conformance-artifacts > adapter-conformance.json
+      - name: Allow artifact collection
+        if: always()
+        run: |
+          if [[ -d adapter-conformance-artifacts ]]; then
+            sudo chown -R -- "$(id -u):$(id -g)" adapter-conformance-artifacts
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adapter-conformance
+          path: |
+            adapter-conformance.json
+            adapter-conformance-artifacts/

@@ -1,5 +1,7 @@
 /target/
 /examples/transports/target/
+/examples/adapter-starter/target/
+/standalone-adapter/
 /crates/transport-protocol/target/
 /results*.json
 /examples/udp-echo/udp-echo
